@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="stylesheet" href="/setup.css">
+<style>
+:root {
+    --page-background: #EAF4FF;
+    --accent-color: #669BBC;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<main class="card">
+<span class="badge">{{BADGE_TEXT}}</span>
+{{? IS_SETUP > setup_form.html}}
+{{? IS_PENDING > connection_pending.html}}
+{{? IS_SUCCESS > provisioning_success.html}}
+</main>
+</div>
+</body>
+</html>

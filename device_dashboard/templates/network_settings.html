@@ -1,0 +1,15 @@
+<section class="dashboard-section">
+<div class="section-heading"><span>Network settings</span></div>
+<div class="settings-panel">
+<div class="settings-copy">
+<strong>Saved network password</strong>
+<span>Remove the saved credentials for {{NETWORK_NAME}} from {{DEVICE_NAME}}.</span>
+</div>
+<form method="post" action="/forget-wifi" class="forget-action">
+<button class="danger-button" type="submit">
+<span>Forget network</span>
+<small>{{NETWORK_NAME}}</small>
+</button>
+</form>
+</div>
+</section>

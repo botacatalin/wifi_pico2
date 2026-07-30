@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+:root {
+    --page-background: {{BACKGROUND_COLOR}};
+    --accent-color: {{ACCENT_COLOR}};
+}
+</style>
+</head>
+<body>
+{{? IS_DASHBOARD > dashboard_shell.html}}
+{{? IS_ERROR > error_shell.html}}
+</body>
+</html>

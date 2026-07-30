@@ -1,0 +1,12 @@
+<div class="dashboard-container">
+<div class="dashboard-layout">
+{{> sidebar.html}}
+<main class="card dashboard-card">
+<div class="badge">
+{{> device_badge.html}}
+</div>
+{{? IS_OVERVIEW > dashboard.html}}
+{{? IS_NETWORK > network.html}}
+</main>
+</div>
+</div>

@@ -1,0 +1,76 @@
+<h2>Connecting to {{SELECTED_NETWORK}}</h2>
+
+<div class="connection-progress is-visible" role="status" aria-live="polite">
+<div class="progress-track" aria-hidden="true">
+<div class="progress-bar"></div>
+</div>
+<p class="small-text">
+Connecting to your Wi-Fi network. This can take up to
+{{CONNECT_TIMEOUT_SECONDS}} seconds. Keep this page open; it will update
+automatically.
+</p>
+
+<p class="small-text" id="connection-status-text" aria-live="polite">
+Credentials received. Connecting now&hellip;
+</p>
+
+</div>
+
+<script>
+(function () {
+    var statusText = document.getElementById("connection-status-text");
+
+    function showResult() {
+        window.location.replace(
+            "{{RESULT_ROUTE}}?t=" + new Date().getTime()
+        );
+    }
+
+    function pollConnection() {
+        var controller = (
+            typeof AbortController === "undefined"
+                ? null
+                : new AbortController()
+        );
+        var requestTimeout = window.setTimeout(function () {
+            if (controller !== null) {
+                controller.abort();
+            }
+        }, {{REQUEST_TIMEOUT_MS}});
+        var options = { cache: "no-store" };
+
+        if (controller !== null) {
+            options.signal = controller.signal;
+        }
+
+        fetch(
+            "{{STATUS_ROUTE}}?t=" + new Date().getTime(),
+            options
+        )
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("Status request failed");
+                }
+
+                return response.json();
+            })
+            .then(function (result) {
+                if (result.state === "connected" || result.state === "failed") {
+                    showResult();
+                    return;
+                }
+
+                window.setTimeout(pollConnection, {{POLL_INTERVAL_MS}});
+            })
+            .catch(function () {
+                statusText.textContent = "Finalizing the connection...";
+                window.setTimeout(pollConnection, {{POLL_INTERVAL_MS}});
+            })
+            .then(function () {
+                window.clearTimeout(requestTimeout);
+            });
+    }
+
+    window.setTimeout(pollConnection, 500);
+}());
+</script>

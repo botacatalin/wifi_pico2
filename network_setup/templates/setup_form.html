@@ -1,0 +1,40 @@
+<h2>Allow {{DEVICE_NAME}} to connect to your Wi-Fi network</h2>
+
+<div class="notice">
+<strong>Device setup</strong>
+<p>
+Select the Wi-Fi network this device should use.
+After the connection to your network succeeds,
+the device will start its interface.
+</p>
+</div>
+
+<form method="post" action="/connect">
+<label for="ssid">Available 2.4 GHz Wi-Fi networks</label>
+<select id="ssid" name="ssid" required>
+{{NETWORK_OPTIONS}}
+</select>
+
+<label for="password">Wi-Fi password</label>
+<input
+    id="password"
+    type="password"
+    name="wifi_key"
+    placeholder="Enter the selected Wi-Fi password"
+    autocomplete="off"
+    autocapitalize="none"
+    spellcheck="false"
+>
+
+{{? MESSAGE > provisioning_error.html}}
+
+<div class="button-row">
+<button type="submit">Connect</button>
+<button
+    class="secondary-button"
+    type="submit"
+    formmethod="get"
+    formaction="/rescan"
+>Rescan</button>
+</div>
+</form>

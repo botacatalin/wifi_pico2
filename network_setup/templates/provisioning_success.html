@@ -1,0 +1,40 @@
+<h2>Setup Complete</h2>
+<div class="notice">
+<p class="success-network">{{CONNECTION_TEXT}}</p>
+<p>The device has joined your Wi-Fi network and its
+web server is now running.</p>
+</div>
+
+<h3>Device dashboard</h3>
+<p class="dashboard-instruction">
+Reconnect your computer to the same local network, then open the dashboard
+below.
+</p>
+<div class="address">
+<strong><a class="dashboard-link" href="http://{{IP}}/">DASHBOARD</a></strong>
+</div>
+<p class="small-text ap-countdown" id="ap-countdown" aria-live="polite">
+Setup Wi-Fi will turn off in {{AP_SHUTDOWN_DELAY_SECONDS}} seconds.
+</p>
+
+<script>
+(function () {
+    var remaining = {{AP_SHUTDOWN_DELAY_SECONDS}};
+    var countdown = document.getElementById("ap-countdown");
+
+    function updateCountdown() {
+        if (remaining <= 0) {
+            countdown.textContent = "Setup Wi-Fi is being disabled.";
+            return;
+        }
+
+        countdown.textContent =
+            "Setup Wi-Fi will turn off in " + remaining +
+            (remaining === 1 ? " second." : " seconds.");
+        remaining -= 1;
+        window.setTimeout(updateCountdown, 1000);
+    }
+
+    updateCountdown();
+}());
+</script>
