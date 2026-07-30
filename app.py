@@ -132,17 +132,18 @@ class App:
         """
 
         self.server_metrics.update()
+        current_tick = time.ticks_ms()
 
         if self.pending_connection is not None:
             if time.ticks_diff(
-                time.ticks_ms(),
+                current_tick,
                 self.pending_connection_at,
             ) >= 0:
                 self._run_pending_connection()
 
         if self.ap_shutdown_at is not None:
             if time.ticks_diff(
-                time.ticks_ms(),
+                current_tick,
                 self.ap_shutdown_at,
             ) >= 0:
                 self.wifi.stop_setup_ap()
@@ -399,8 +400,6 @@ class App:
         client,
         request,
     ):
-        self.wifi.clear_scan_cache()
-
         self._show_setup_page(
             client,
             force_scan=True,
