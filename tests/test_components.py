@@ -175,6 +175,7 @@ class DevicePageTests(unittest.TestCase):
                 "direction": "received",
                 "node": "peer<one>",
                 "payload": '<script>alert("x")</script>',
+                "created_at_ms": time.ticks_ms(),
             }],
         )
 
@@ -194,6 +195,8 @@ class DevicePageTests(unittest.TestCase):
         )
         self.assertIn('value="peer&lt;one&gt;" checked', page)
         self.assertNotIn('<script>alert("x")</script>', page)
+        self.assertIn('<time data-message-age-ms="', page)
+        self.assertIn("messageDate.toLocaleTimeString", page)
         self.assertIn('action="/communication/command"', page)
         self.assertIn('formaction="/communication/refresh"', page)
         self.assertIn('formaction="/communication/clear"', page)
@@ -202,7 +205,7 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn('fetch("/communication/message-revision"', page)
         self.assertIn("var revision = 0;", page)
         self.assertIn("window.location.reload()", page)
-        self.assertIn("Plugin settings", page)
+        self.assertIn("Discover", page)
         self.assertIn('action="/communication/toggle"', page)
         self.assertIn("Disable", page)
         self.assertLess(page.index("<dt>Board ID</dt>"), page.index("Devices found"))
@@ -247,7 +250,7 @@ class DevicePageTests(unittest.TestCase):
                 "payload": "hello",
             }],
         )
-        self.assertIn("<small>This Device</small>", sent_page)
+        self.assertIn("<small><span>This Device</span>", sent_page)
         self.assertNotIn("<small>nodes-a1b2</small>", sent_page)
         self.assertNotIn('href="/communication"', page)
 
@@ -267,7 +270,7 @@ class DevicePageTests(unittest.TestCase):
         self.assertNotIn("Searching for other boards", page)
         self.assertNotIn("<dt>Board ID</dt>", page)
         self.assertNotIn("<dt>Group name</dt>", page)
-        self.assertIn("Plugin settings", page)
+        self.assertIn("Discover", page)
         self.assertIn("Enable", page)
 
     def test_system_status_belongs_to_overview_only(self):
@@ -441,8 +444,11 @@ class CommunicationPluginTests(unittest.TestCase):
             network._execute_request("nodes-c3d4", "message", "hello"),
             (True, "hello"),
         )
+        recent_messages = network.recent_messages()[-2:]
+        self.assertTrue(all("created_at_ms" in message for message in recent_messages))
         self.assertEqual(
-            network.recent_messages()[-2:],
+            [{key: value for key, value in message.items() if key != "created_at_ms"}
+             for message in recent_messages],
             [
                 {
                     "direction": "received",
@@ -564,7 +570,12 @@ class CommunicationPluginTests(unittest.TestCase):
 
         network._receive_one()
 
-        self.assertEqual(network.recent_messages()[-2:], [
+        recent_messages = network.recent_messages()[-2:]
+        self.assertTrue(all("created_at_ms" in message for message in recent_messages))
+        self.assertEqual([
+            {key: value for key, value in message.items() if key != "created_at_ms"}
+            for message in recent_messages
+        ], [
             {"direction": "received", "node": "peer-one", "payload": "hello"},
             {"direction": "sent", "node": "peer-one", "payload": "hello"},
         ])
@@ -635,7 +646,12 @@ class CommunicationPluginTests(unittest.TestCase):
             network.send_command("peer-one", "ping"),
             (True, "accepted"),
         )
-        self.assertEqual(network.recent_messages()[-2:], [
+        recent_messages = network.recent_messages()[-2:]
+        self.assertTrue(all("created_at_ms" in message for message in recent_messages))
+        self.assertEqual([
+            {key: value for key, value in message.items() if key != "created_at_ms"}
+            for message in recent_messages
+        ], [
             {"direction": "sent", "node": "peer-one", "payload": "Ping"},
             {"direction": "received", "node": "peer-one", "payload": "accepted"},
         ])

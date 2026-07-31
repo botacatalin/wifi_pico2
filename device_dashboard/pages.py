@@ -1,5 +1,7 @@
 """HTML pages served by the device web server."""
 
+import time
+
 from shared_web.html import html_escape
 from shared_web.template import render_template
 
@@ -36,6 +38,7 @@ def device_page(
     is_about_page = page == "about"
     peer_cards = []
     chat_messages = []
+    rendered_at_ms = time.ticks_ms()
     for index, peer in enumerate(peers or []):
         name = html_escape(peer.get("name", ""))
         peer_ip = html_escape(peer.get("ip", ""))
@@ -54,9 +57,15 @@ def device_page(
             else html_escape(message_record.get("node", ""))
         )
         payload = html_escape(message_record.get("payload", ""))
+        created_at_ms = message_record.get("created_at_ms")
+        timestamp_html = ""
+        if created_at_ms is not None:
+            age_ms = max(0, time.ticks_diff(rendered_at_ms, created_at_ms))
+            timestamp_html = '<time data-message-age-ms="%d"></time>' % age_ms
         chat_messages.append(
-            '<div class="chat-message %s"><small>%s</small><p>%s</p></div>'
-            % (direction, node, payload)
+            '<div class="chat-message %s"><small><span>%s</span>%s</small>'
+            '<p>%s</p></div>'
+            % (direction, node, timestamp_html, payload)
         )
 
     return render_template(

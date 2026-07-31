@@ -151,7 +151,8 @@ boards appear as selectable buttons showing node name and IP address. The
 separate Conversation section appears below it. Select a board, type into the
 composer below the chat window, and press
 **Send**. The chat keeps the eight most recent sent and received messages in
-RAM. Select **Clear conversation** to remove that local history without
+RAM and timestamps them using the viewing browser's local clock. Select
+**Clear conversation** to remove that local history without
 affecting discovered devices or the other board. History is also cleared when
 the plugin stops or the board restarts. While the Messages page is open, it
 checks for conversation changes once per second and reloads automatically when

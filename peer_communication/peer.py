@@ -308,6 +308,7 @@ class PeerNetwork:
             "direction": direction,
             "node": node,
             "payload": payload,
+            "created_at_ms": time.ticks_ms(),
         })
         self.message_revision += 1
 

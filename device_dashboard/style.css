@@ -370,9 +370,25 @@ textarea {
 }
 
 .chat-message small {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
     opacity: .72;
     font-size: 11px;
     font-weight: 700;
+}
+
+.chat-message.is-sent small {
+    align-items: flex-end;
+}
+
+.chat-message time {
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    opacity: .8;
+    white-space: nowrap;
 }
 
 .chat-message p {

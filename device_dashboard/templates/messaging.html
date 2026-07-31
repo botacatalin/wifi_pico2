@@ -7,7 +7,7 @@
 </header>
 {{? MESSAGE > notice.html}}
 <section class="dashboard-section">
-<div class="section-heading"><span>Plugin settings</span></div>
+<div class="section-heading"><span>Discover</span></div>
 {{? COMMUNICATION_ENABLED > communication_enabled.html}}
 {{? COMMUNICATION_DISABLED > communication_disabled.html}}
 </section>
@@ -15,6 +15,19 @@
 <script>
 (function () {
     var revision = {{MESSAGE_REVISION}};
+    var pageLoadedAt = Date.now();
+    var timestamps = document.querySelectorAll("time[data-message-age-ms]");
+    for (var index = 0; index < timestamps.length; index += 1) {
+        var timestamp = timestamps[index];
+        var age = parseInt(timestamp.getAttribute("data-message-age-ms"), 10);
+        var messageDate = new Date(pageLoadedAt - age);
+        timestamp.dateTime = messageDate.toISOString();
+        timestamp.textContent = messageDate.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+        });
+    }
     function checkMessages() {
         fetch("{{MESSAGE_REVISION_ROUTE}}", {cache: "no-store"})
             .then(function (response) { return response.text(); })
