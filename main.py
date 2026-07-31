@@ -12,6 +12,18 @@ from config import (
     AP_NETMASK,
     AP_OPEN,
     AP_SSID,
+    COMMUNICATION_ENABLED_DEFAULT,
+    COMMUNICATION_DISCOVERY_INTERVAL_MS,
+    COMMUNICATION_GROUP_NAME,
+    COMMUNICATION_MAX_PACKET_BYTES,
+    COMMUNICATION_MAX_PAYLOAD_BYTES,
+    COMMUNICATION_NODE_NAME,
+    COMMUNICATION_PEER_EXPIRY_MS,
+    COMMUNICATION_PORT,
+    COMMUNICATION_REPLY_TIMEOUT_MS,
+    COMMUNICATION_RETRY_INTERVAL_MS,
+    COMMUNICATION_STATE_FILE,
+    COMMUNICATION_STATE_TEMP_FILE,
     CONNECT_STATUS_GRACE_MS,
     CONNECT_TIMEOUT_MS,
     DEVICE_NAME,
@@ -25,9 +37,14 @@ from config import (
 from shared_web import create_server
 from network_setup import CredentialStore
 
-from utils import log
+from app_logging import log
 
 from network_setup.wifi import WiFi
+from peer_communication import (
+    CommunicationPlugin,
+    PluginStateStore,
+    default_node_name,
+)
 
 
 def connect_with_saved_credentials(wifi, credential_store):
@@ -90,11 +107,35 @@ def main():
         wifi.start_setup_ap()
         wifi.scan(force=True)
 
+    communication_plugin = CommunicationPlugin(
+        node_name=(
+            COMMUNICATION_NODE_NAME
+            or default_node_name(DEVICE_NAME)
+        ),
+        group_name=COMMUNICATION_GROUP_NAME,
+        state_store=PluginStateStore(
+            path=COMMUNICATION_STATE_FILE,
+            temporary_path=COMMUNICATION_STATE_TEMP_FILE,
+            logger=log,
+        ),
+        enabled_default=COMMUNICATION_ENABLED_DEFAULT,
+        port=COMMUNICATION_PORT,
+        discovery_interval_ms=COMMUNICATION_DISCOVERY_INTERVAL_MS,
+        peer_expiry_ms=COMMUNICATION_PEER_EXPIRY_MS,
+        reply_timeout_ms=COMMUNICATION_REPLY_TIMEOUT_MS,
+        command_retry_interval_ms=COMMUNICATION_RETRY_INTERVAL_MS,
+        broadcast_address=wifi.station_broadcast,
+        max_packet_bytes=COMMUNICATION_MAX_PACKET_BYTES,
+        max_payload_bytes=COMMUNICATION_MAX_PAYLOAD_BYTES,
+        logger=log,
+    )
+
     app = App(
         wifi=wifi,
         credential_store=credential_store,
         provisioned=connected,
         connected_ssid=saved_ssid if connected else "",
+        communication_plugin=communication_plugin,
     )
 
     server = create_server(
@@ -156,6 +197,8 @@ def main():
         server.close()
     except Exception:
         pass
+
+    communication_plugin.close()
 
     log(
         "Server stopped."

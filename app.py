@@ -20,17 +20,24 @@ from config import (
     DEVICE_NAME,
     MAX_BODY_BYTES,
     MAX_HEADER_BYTES,
+    COMMUNICATION_MAX_PAYLOAD_BYTES,
     PROCESSOR_TEMPERATURE_CRITICAL_C,
+    ROUTE_ABOUT,
+    ROUTE_CLEAR_CONVERSATION,
+    ROUTE_COMMUNICATION_TOGGLE,
+    ROUTE_COMMUNICATION_REFRESH,
     ROUTE_CONNECT,
     ROUTE_CONNECTION_RESULT,
     ROUTE_CONNECTION_STATUS,
     ROUTE_FORGET_WIFI,
     ROUTE_HEALTH,
     ROUTE_HOME,
+    ROUTE_MESSAGES,
     ROUTE_NETWORK,
     ROUTE_README,
     ROUTE_RESCAN,
     ROUTE_SETUP_STYLE,
+    ROUTE_SEND_COMMAND,
     ROUTE_STYLE,
     SOCKET_TIMEOUT_SECONDS,
     STATIC_CACHE_SECONDS,
@@ -61,7 +68,7 @@ from device_dashboard.pages import (
 )
 from device_dashboard.metrics import ServerMetrics
 
-from utils import log
+from app_logging import log
 
 
 class App:
@@ -72,6 +79,7 @@ class App:
         credential_store=None,
         provisioned=False,
         connected_ssid="",
+        communication_plugin=None,
     ):
         self.wifi = wifi
         self.credential_store = (
@@ -86,7 +94,9 @@ class App:
         self.provisioned = provisioned
         self.device_ip = wifi.station_ip() if provisioned else ""
         self.connected_ssid = connected_ssid
+        self.communication_plugin = communication_plugin
         self.server_message = ""
+        self.server_message_page = None
         self.connection_state = "connected" if provisioned else "idle"
         self.connection_error = ""
         self.pending_connection = None
@@ -110,7 +120,9 @@ class App:
 
         self.device_routes = {
             ("GET", ROUTE_HOME): self._route_device_home,
+            ("GET", ROUTE_MESSAGES): self._route_messages,
             ("GET", ROUTE_NETWORK): self._route_network,
+            ("GET", ROUTE_ABOUT): self._route_about,
             ("GET", ROUTE_CONNECT): self._route_provisioning_success,
             ("GET", ROUTE_CONNECTION_STATUS): self._route_connection_status,
             ("GET", ROUTE_CONNECTION_RESULT): self._route_connection_result,
@@ -119,7 +131,14 @@ class App:
             ("GET", ROUTE_SETUP_STYLE): self._route_setup_style,
             ("GET", ROUTE_STYLE): self._route_style,
             ("GET", ROUTE_README): self._route_readme,
+            ("POST", ROUTE_COMMUNICATION_TOGGLE): self._route_communication_toggle,
+            ("POST", ROUTE_COMMUNICATION_REFRESH): self._route_communication_refresh,
+            ("POST", ROUTE_CLEAR_CONVERSATION): self._route_clear_conversation,
+            ("POST", ROUTE_SEND_COMMAND): self._route_send_command,
         }
+
+        if self.communication_plugin is not None:
+            self.communication_plugin.set_network_ready(self.provisioned)
 
     # =====================================================
     # Background tasks
@@ -133,6 +152,12 @@ class App:
 
         self.server_metrics.update()
         current_tick = time.ticks_ms()
+
+        if self.provisioned and self.communication_plugin is not None:
+            try:
+                self.communication_plugin.update()
+            except Exception as exc:
+                log("Communication update failed: %s" % exc)
 
         if self.pending_connection is not None:
             if time.ticks_diff(
@@ -526,6 +551,9 @@ class App:
         self.connection_state = "connected"
         self.awaiting_setup_result = True
 
+        if self.communication_plugin is not None:
+            self.communication_plugin.set_network_ready(True)
+
         # Keep the AP available for recovery if the browser loses association
         # while the shared radio changes channel. Delivering the success page
         # replaces this fallback with the normal short shutdown delay.
@@ -535,6 +563,7 @@ class App:
             self.server_message = (
                 "Connected, but the Wi-Fi password could not be saved."
             )
+            self.server_message_page = "overview"
 
         log("Setup completed.")
 
@@ -646,6 +675,13 @@ class App:
     ):
         self._show_device_page(client, "overview")
 
+    def _route_messages(
+        self,
+        client,
+        request,
+    ):
+        self._show_device_page(client, "messages")
+
     def _route_network(
         self,
         client,
@@ -653,23 +689,106 @@ class App:
     ):
         self._show_device_page(client, "network")
 
+    def _route_about(
+        self,
+        client,
+        request,
+    ):
+        self._show_device_page(client, "about")
+
+    def _route_communication_toggle(self, client, request):
+        self.server_message_page = "messages"
+        plugin = self.communication_plugin
+        if plugin is None:
+            self.server_message = "The communication plugin is unavailable."
+        else:
+            form = parse_form(request.body)
+            enabled = form.get("enabled") == "1"
+            if plugin.set_enabled(enabled):
+                state = "enabled" if enabled else "disabled"
+                self.server_message = "Communication plugin %s." % state
+            else:
+                self.server_message = "Could not change communication plugin state."
+        send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
+
+    def _route_send_command(self, client, request):
+        self.server_message_page = "messages"
+        form = parse_form(request.body)
+        peer_name = form.get("peer", "").strip()
+        command = form.get("command", "").strip()
+        payload = form.get("payload", "").strip()
+
+        if self.communication_plugin is None:
+            self.server_message = "The communication plugin is unavailable."
+        else:
+            try:
+                ok, reply = self.communication_plugin.send_command(
+                    peer_name, command, payload
+                )
+                if ok:
+                    # Successful replies are rendered in the chat window.
+                    self.server_message = ""
+                else:
+                    self.server_message = (
+                        "Could not reach %s: %s" % (peer_name, reply)
+                    )
+            except Exception as exc:
+                log("Could not send communication command: %s" % exc)
+                self.server_message = "The command could not be sent."
+
+        send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
+
+    def _route_communication_refresh(self, client, request):
+        self.server_message_page = "messages"
+        plugin = self.communication_plugin
+        if plugin is None or not plugin.enabled:
+            self.server_message = "Enable the communication plugin first."
+        elif not plugin.refresh_devices():
+            self.server_message = (
+                "Device discovery is unavailable. Check the Wi-Fi connection."
+            )
+        else:
+            # A successful refresh is reflected by the device list itself.
+            self.server_message = ""
+        send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
+
+    def _route_clear_conversation(self, client, request):
+        if self.communication_plugin is not None:
+            self.communication_plugin.clear_messages()
+        self.server_message = ""
+        self.server_message_page = "messages"
+        send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
+
     def _show_device_page(self, client, page):
         current_ip = self.wifi.station_ip()
 
         if current_ip:
             self.device_ip = current_ip
 
-        temperature, temperature_state = (
-            self.server_metrics.temperature_status()
-        )
+        plugin = None
+        uptime = ""
+        temperature = "Unavailable"
+        temperature_state = ""
+
+        if page == "overview":
+            uptime = self.server_metrics.uptime_text()
+            temperature, temperature_state = (
+                self.server_metrics.temperature_status()
+            )
+        elif page == "messages":
+            plugin = self.communication_plugin
 
         send_html(
             client,
             device_page(
                 self.device_ip,
                 network_name=self.connected_ssid,
-                message=self.server_message,
-                uptime=self.server_metrics.uptime_text(),
+                message=(
+                    self.server_message
+                    if self.server_message_page in (None, page)
+                    else ""
+                ),
+                uptime=uptime,
                 temperature=temperature,
                 temperature_state=temperature_state,
                 page=page,
@@ -677,6 +796,26 @@ class App:
                 background_color=DASHBOARD_BACKGROUND_COLOR,
                 accent_color=DASHBOARD_ACCENT_COLOR,
                 temperature_limit=PROCESSOR_TEMPERATURE_CRITICAL_C,
+                communication_enabled=(
+                    plugin.enabled if plugin is not None else False
+                ),
+                node_name=(
+                    plugin.node_name if plugin is not None else ""
+                ),
+                communication_group_name=(
+                    plugin.group_name if plugin is not None else ""
+                ),
+                peers=(
+                    plugin.available_peers() if plugin is not None else []
+                ),
+                messages=(
+                    plugin.recent_messages() if plugin is not None else []
+                ),
+                communication_toggle_route=ROUTE_COMMUNICATION_TOGGLE,
+                communication_refresh_route=ROUTE_COMMUNICATION_REFRESH,
+                clear_conversation_route=ROUTE_CLEAR_CONVERSATION,
+                send_command_route=ROUTE_SEND_COMMAND,
+                max_payload_length=COMMUNICATION_MAX_PAYLOAD_BYTES,
             ),
         )
 
@@ -685,6 +824,7 @@ class App:
         client,
         request,
     ):
+        self.server_message_page = "network"
         network_name = self.connected_ssid
         removed = self.credential_store.delete()
         self.connected_ssid = ""

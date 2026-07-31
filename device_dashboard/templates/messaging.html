@@ -1,0 +1,14 @@
+<header class="dashboard-header">
+<div>
+<p class="eyebrow">Dashboard</p>
+<h1>Messages</h1>
+<p class="dashboard-subtitle">Discover local devices and exchange command/reply messages.</p>
+</div>
+</header>
+{{? MESSAGE > notice.html}}
+<section class="dashboard-section">
+<div class="section-heading"><span>Plugin settings</span></div>
+{{? COMMUNICATION_ENABLED > communication_enabled.html}}
+{{? COMMUNICATION_DISABLED > communication_disabled.html}}
+</section>
+{{? COMMUNICATION_ENABLED > messaging_devices.html}}

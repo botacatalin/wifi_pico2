@@ -28,6 +28,8 @@ The two packages have intentionally separate responsibilities:
   avoid unnecessary dependencies on the current application.
 - `device_dashboard/` is the product-specific interface used after the Pico 2 W
   has connected to Wi-Fi. It owns dashboard pages, metrics, errors, and styles.
+- `peer_communication/` owns the optional local UDP discovery and bounded
+  command/reply protocol without depending on either UI package.
 - `shared_web/` provides reusable bounded HTTP, form, escaping, and template
   helpers without depending on application configuration or either UI package.
 - `app.py` is the integration layer between those components. It selects setup
@@ -46,7 +48,7 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
 - `config.py` contains device identity, network settings, timeouts, request
   limits, and route constants.
 - `shared_web/template.py` implements the small file-based template language.
-- `utils.py` contains application-configured logging compatibility helpers.
+- `app_logging.py` contains the application-configured logging helper.
 - `network_setup/wifi.py` wraps reusable AP/STA radio setup, scanning, and
   connection behavior.
 - `network_setup/credentials.py` manages `wifi_credentials.json` using a
@@ -56,6 +58,8 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
 - `shared_web/http.py` parses bounded HTTP requests and writes socket responses.
 - `device_dashboard/pages.py` renders dashboard and error pages from
   `device_dashboard/templates/`.
+- `peer_communication/plugin.py` owns messaging enablement and saved state;
+  `peer_communication/peer.py` owns UDP discovery and command/reply transport.
 - Each UI component owns its stylesheet.
 - `README.md` is the user-facing installation, behavior, and troubleshooting
   guide; update it when visible behavior, configuration, or routes change.

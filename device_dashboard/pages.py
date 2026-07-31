@@ -16,9 +16,46 @@ def device_page(
     background_color="#ECFAEF",
     accent_color="#4F772D",
     temperature_limit=85,
+    communication_enabled=False,
+    node_name="",
+    communication_group_name="",
+    peers=None,
+    messages=None,
+    communication_toggle_route="/communication/toggle",
+    communication_refresh_route="/communication/refresh",
+    clear_conversation_route="/communication/clear",
+    send_command_route="/communication/command",
+    max_payload_length=160,
     template_directory="device_dashboard/templates/",
 ):
+    is_overview_page = page == "overview"
+    is_messages_page = page == "messages"
     is_network_page = page == "network"
+    is_about_page = page == "about"
+    peer_cards = []
+    chat_messages = []
+    for index, peer in enumerate(peers or []):
+        name = html_escape(peer.get("name", ""))
+        ip = html_escape(peer.get("ip", ""))
+        peer_cards.append(
+            '<label class="peer-card"><input type="radio" name="peer" '
+            'value="%s"%s><span><strong>%s</strong>'
+            '<small>IP address <code>%s</code></small></span></label>'
+            % (name, " checked" if index == 0 else "", name, ip)
+        )
+    for message_record in messages or []:
+        is_sent = message_record.get("direction") == "sent"
+        direction = "is-sent" if is_sent else "is-received"
+        node = (
+            "This Device"
+            if is_sent
+            else html_escape(message_record.get("node", ""))
+        )
+        payload = html_escape(message_record.get("payload", ""))
+        chat_messages.append(
+            '<div class="chat-message %s"><small>%s</small><p>%s</p></div>'
+            % (direction, node, payload)
+        )
 
     return render_template(
         template_directory + "index.html",
@@ -28,10 +65,14 @@ def device_page(
             "ACCENT_COLOR": accent_color,
             "IS_DASHBOARD": True,
             "IS_ERROR": False,
-            "IS_OVERVIEW": not is_network_page,
+            "IS_OVERVIEW": is_overview_page,
+            "IS_MESSAGES": is_messages_page,
             "IS_NETWORK": is_network_page,
-            "OVERVIEW_ACTIVE": "is-active" if not is_network_page else "",
+            "IS_ABOUT": is_about_page,
+            "OVERVIEW_ACTIVE": "is-active" if is_overview_page else "",
+            "MESSAGES_ACTIVE": "is-active" if is_messages_page else "",
             "NETWORK_ACTIVE": "is-active" if is_network_page else "",
+            "ABOUT_ACTIVE": "is-active" if is_about_page else "",
             "DEVICE_NAME": html_escape(device_name),
             "NETWORK_NAME": (
                 html_escape(network_name) if network_name else "Not saved"
@@ -43,6 +84,21 @@ def device_page(
             "TEMPERATURE": html_escape(temperature),
             "TEMPERATURE_STATE": html_escape(temperature_state),
             "TEMPERATURE_LIMIT": temperature_limit,
+            "NODE_NAME": html_escape(node_name),
+            "COMMUNICATION_GROUP_NAME": html_escape(communication_group_name),
+            "COMMUNICATION_ENABLED": communication_enabled,
+            "COMMUNICATION_DISABLED": not communication_enabled,
+            "HAS_PEERS": bool(peer_cards),
+            "NO_PEERS": not bool(peer_cards),
+            "PEER_CARDS": "".join(peer_cards),
+            "HAS_MESSAGES": bool(chat_messages),
+            "NO_MESSAGES": not bool(chat_messages),
+            "CHAT_MESSAGES": "".join(chat_messages),
+            "COMMUNICATION_TOGGLE_ROUTE": html_escape(communication_toggle_route),
+            "COMMUNICATION_REFRESH_ROUTE": html_escape(communication_refresh_route),
+            "CLEAR_CONVERSATION_ROUTE": html_escape(clear_conversation_route),
+            "SEND_COMMAND_ROUTE": html_escape(send_command_route),
+            "MAX_PAYLOAD_LENGTH": max_payload_length,
         },
     )
 

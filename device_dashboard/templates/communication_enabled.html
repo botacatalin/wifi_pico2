@@ -1,0 +1,14 @@
+<div class="plugin-status is-enabled">
+<div>
+<strong>Enabled</strong>
+<span>This board is discoverable and accepts supported commands.</span>
+<dl class="communication-identity">
+<div><dt>Board ID</dt><dd>{{NODE_NAME}}</dd></div>
+<div><dt>Group name</dt><dd>{{COMMUNICATION_GROUP_NAME}}</dd></div>
+</dl>
+</div>
+<form method="post" action="{{COMMUNICATION_TOGGLE_ROUTE}}">
+<input type="hidden" name="enabled" value="0">
+<button class="secondary-button" type="submit">Disable</button>
+</form>
+</div>

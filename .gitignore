@@ -37,9 +37,12 @@ pip-wheel-metadata/
 .env.*
 !.env.example
 
-# Pico runtime data (contains Wi-Fi credentials)
+# Pico runtime data
+# Wi-Fi credentials contain the network password.
 wifi_credentials.json
 wifi_credentials.tmp
+communication_plugin.json
+communication_plugin.tmp
 
 # Operating-system metadata
 .DS_Store

@@ -41,6 +41,26 @@ SERVER_ACCEPT_TIMEOUT_SECONDS = 1
 STATIC_CACHE_SECONDS = 3600
 
 # =========================================================
+# Optional communication plugin
+# =========================================================
+
+# Leave this empty to derive a short, unique name from the board ID.
+COMMUNICATION_NODE_NAME = ""
+COMMUNICATION_ENABLED_DEFAULT = False
+COMMUNICATION_STATE_FILE = "communication_plugin.json"
+COMMUNICATION_STATE_TEMP_FILE = "communication_plugin.tmp"
+COMMUNICATION_PORT = 4242
+COMMUNICATION_DISCOVERY_INTERVAL_MS = 5000
+COMMUNICATION_PEER_EXPIRY_MS = 30000
+COMMUNICATION_REPLY_TIMEOUT_MS = 3000
+COMMUNICATION_RETRY_INTERVAL_MS = 500
+COMMUNICATION_MAX_PACKET_BYTES = 512
+COMMUNICATION_MAX_PAYLOAD_BYTES = 160
+# Only boards with the same group name discover and communicate with each other.
+# The group name is sent in plain text and is not a password.
+COMMUNICATION_GROUP_NAME = "nodes-local"
+
+# =========================================================
 # Wi-Fi timing
 # =========================================================
 
@@ -67,16 +87,22 @@ DASHBOARD_ACCENT_COLOR = "#4F772D"
 # =========================================================
 
 ROUTE_HOME = "/"
+ROUTE_ABOUT = "/about"
 ROUTE_CONNECT = "/connect"
 ROUTE_CONNECTION_RESULT = "/connection-result"
 ROUTE_CONNECTION_STATUS = "/connection-status"
 ROUTE_FORGET_WIFI = "/forget-wifi"
 ROUTE_RESCAN = "/rescan"
 ROUTE_HEALTH = "/health"
+ROUTE_MESSAGES = "/messages"
 ROUTE_NETWORK = "/network"
 ROUTE_STYLE = "/style.css"
 ROUTE_SETUP_STYLE = "/setup.css"
 ROUTE_README = "/README.md"
+ROUTE_COMMUNICATION_TOGGLE = "/communication/toggle"
+ROUTE_COMMUNICATION_REFRESH = "/communication/refresh"
+ROUTE_CLEAR_CONVERSATION = "/communication/clear"
+ROUTE_SEND_COMMAND = "/communication/command"
 
 CAPTIVE_PORTAL_ROUTES = (
     "/",

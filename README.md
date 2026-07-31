@@ -1,7 +1,8 @@
 # Nodes Wi-Fi Provisioning Server
 
 MicroPython firmware for provisioning a Raspberry Pi Pico 2 W onto a 2.4 GHz
-Wi-Fi network and serving a small dashboard on the local network.
+Wi-Fi network, serving a local dashboard, and exchanging command/reply messages
+with other enabled boards on the LAN.
 
 ## How it works
 
@@ -60,24 +61,169 @@ The successful browser flow is therefore:
 On later boots, saved credentials are tried first. If the connection fails, the
 board returns to setup mode.
 
-The connected dashboard has two pages:
+The connected dashboard has four pages:
 
-- **Overview:** project resources.
-- **Network:** server uptime, approximate RP2350 temperature, and saved-network
-  controls. Temperatures at or above 85°C are marked critical.
+- **Overview:** system status.
+  Processor temperatures at or above 85°C are marked critical.
+- **Messages:** communication-plugin controls, local board/group identity,
+  discovered boards with IP addresses, and command/reply messages.
+- **Network:** saved-network controls.
+- **About:** project summary, external README, `nodes.ro@proton.me` contact, and
+  GNU GPL v2 license information.
 
 **Forget network** removes the saved credentials without interrupting the
 current session. Setup mode returns after restart.
+
+## Messaging
+
+The optional communication plugin lets connected Pico 2 W boards discover one
+another and exchange short command/reply messages on the local network. It is
+disabled by default and runs only in device mode after Wi-Fi has a usable LAN
+address.
+
+### Enable messaging
+
+Messaging enablement is controlled from the Messages page. Select **Enable** to
+start discovery and command handling, or **Disable** to close the UDP socket and
+hide the board from its peers. The choice is saved in
+`communication_plugin.json` and restored after restart. The plugin starts only
+after the board receives a LAN address.
+
+When enabled, the plugin card identifies the local board and group below its
+status text, for example:
+
+```text
+Board ID nodes-75833497    Group name nodes-local
+```
+
+The node suffix is derived from the board's hardware ID unless
+`COMMUNICATION_NODE_NAME` is configured. `COMMUNICATION_GROUP_NAME` is a
+discovery group, not a password. Boards only see and communicate with enabled
+boards using the same group name and UDP port.
+
+### Discover boards
+
+Each enabled board calculates the subnet-directed broadcast address from its
+station IP and netmask, then broadcasts a small UDP discovery packet
+periodically. This avoids CYW43 routing failures that can occur with the global
+`255.255.255.255` address. A board that receives the packet replies directly,
+and both boards add one another to their available-device lists. Inactive
+boards expire from the list after the configured timeout. A temporary broadcast
+failure is retried at the next normal interval instead of on every server-loop
+iteration.
+
+Discovery updates automatically. Discovered-device cards and the target
+selector show both node name and LAN IP address. **Refresh devices** broadcasts
+immediately and reloads the current server-rendered list without showing a
+success notice. For discovery to work, the boards must:
+
+- Be connected to the same local Wi-Fi network.
+- Use the same `COMMUNICATION_GROUP_NAME` and `COMMUNICATION_PORT`.
+- Have the communication plugin enabled.
+- Be on a network that permits UDP broadcast and client-to-client traffic.
+
+Guest-network or access-point client isolation can prevent discovery even when
+both boards are connected successfully.
+
+### Send messages and receive replies
+
+The Devices found section places Refresh devices at the top right. Discovered
+boards appear as selectable buttons showing node name and IP address. The
+separate Conversation section appears below it. Select a board, type into the
+composer below the chat window, and press
+**Send**. The chat keeps the eight most recent sent and received messages in
+RAM. Select **Clear conversation** to remove that local history without
+affecting discovered devices or the other board. History is also cleared when
+the plugin stops or the board restarts.
+
+Select **Ping** beside Send to test the selected board without entering a
+message. The receiver automatically returns `Ping ACK from <board-id>.` A
+`message` receiver currently echoes the original payload in its reply; this is
+the extension point for future message-processing behavior. Successful message
+echoes and Ping ACKs appear inside the chat window, replacing its “No messages
+yet” state. On the sender, the request uses the sent-message color and the
+reply uses the received-message color. The receiving board records the inverse:
+the incoming request followed by its automatic Ping ACK or echoed-message
+reply. Locally sent bubbles are labeled **This Device**; received bubbles show
+the remote board ID. Retries reuse cached replies and do not duplicate chat
+entries. Only failures are shown as page notices.
+
+Application packets use the same `message_type` for a request and its response:
+`message` for text delivery and `ping` for availability checks. `kind`
+distinguishes `request`, successful `reply`, and rejected `error` packets. A
+separate `command` field and boolean `reply` field are not used.
+
+Message request:
+
+```json
+{
+  "message_type": "message",
+  "kind": "request",
+  "request_id": "nodes-75833497-1",
+  "node_name": "nodes-75833497",
+  "group_name": "nodes-local",
+  "payload": "Hello"
+}
+```
+
+Successful response:
+
+```json
+{
+  "message_type": "message",
+  "kind": "reply",
+  "request_id": "nodes-75833497-1",
+  "node_name": "nodes-91ab2041",
+  "group_name": "nodes-local",
+  "payload": "Hello"
+}
+```
+
+A rejected request returns the same structure with `kind: "error"` and an
+explanation in `payload`. This means the target received the request but could
+not accept it. It differs from a timeout, where no matching response arrived.
+Ping uses the same fields with `message_type: "ping"`.
+
+Matching the message type, request ID, sender name, and source IP address
+prevents an unrelated response from completing the request.
+
+Commands retry with the same request ID during the bounded reply window. The
+receiver remembers a small number of recent IDs, so a retried command returns
+its previous reply without executing twice. The sender shows the reply as a
+Messages-page notice, and the target displays its latest accepted `message`
+payload. Request IDs include a per-plugin-session value so disabling,
+re-enabling, or restarting a sender does not collide with an ID still cached by
+another board. Deduplication keys also include the message type.
+
+Selecting a peer for a command gives it a fresh 30-second liveness window. A
+temporary ping or message timeout therefore does not immediately remove a
+device whose previous discovery record was already near expiry. UDP send errors
+are retried inside the three-second reply window; normal discovery ultimately
+decides whether the peer remains available.
+
+### Runtime and security
+
+Messaging shares the existing single-core application loop. The discovery
+socket is non-blocking and each update handles a bounded number of packets so
+normal HTTP serving can continue. Sending a command waits for its reply for up
+to `COMMUNICATION_REPLY_TIMEOUT_MS`, during which the synchronous HTTP server
+cannot serve another request.
+
+Discovery and message packets are plain-text UDP with no authentication or
+encryption. Use messaging only on a trusted LAN; a matching group name provides
+separation between board groups but is not a security boundary.
 
 ## Installation
 
 1. Install current Pico 2 W-compatible MicroPython firmware.
 2. Copy all project files to the board, preserving the `network_setup/`,
-   `shared_web/`, and `device_dashboard/` directories.
+   `shared_web/`, `device_dashboard/`, and `peer_communication/` directories.
 3. Power-cycle the board.
 
 MicroPython runs `main.py` automatically. Do not copy or commit
 `wifi_credentials.json`; it contains the Wi-Fi password in plain text.
+The dashboard creates `communication_plugin.json` when its communication toggle
+is changed; this runtime state file does not need to be copied between boards.
 
 ## First-time setup
 
@@ -113,8 +259,14 @@ Common captive-portal probe routes also display setup.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Overview dashboard |
-| `GET` | `/network` | System and saved-network information |
+| `GET` | `/` | System overview |
+| `GET` | `/messages` | Device discovery and command/reply messaging |
+| `GET` | `/network` | Saved-network information |
+| `GET` | `/about` | Project, contact, documentation, and license information |
+| `POST` | `/communication/toggle` | Enable or disable messaging |
+| `POST` | `/communication/refresh` | Broadcast device discovery now |
+| `POST` | `/communication/clear` | Clear this board's in-memory conversation history |
+| `POST` | `/communication/command` | Send a command to a discovered device |
 | `POST` | `/forget-wifi` | Delete saved credentials |
 | `GET` | `/connect` | Provisioning success page |
 | `GET` | `/connection-result` | Completed connection result |
@@ -145,6 +297,18 @@ AP_RESULT_TIMEOUT_MS = 120000
 PROCESSOR_TEMPERATURE_CRITICAL_C = 85
 DASHBOARD_BACKGROUND_COLOR = "#ECFAEF"
 DASHBOARD_ACCENT_COLOR = "#4F772D"
+COMMUNICATION_NODE_NAME = ""
+COMMUNICATION_ENABLED_DEFAULT = False
+COMMUNICATION_STATE_FILE = "communication_plugin.json"
+COMMUNICATION_STATE_TEMP_FILE = "communication_plugin.tmp"
+COMMUNICATION_GROUP_NAME = "nodes-local"
+COMMUNICATION_PORT = 4242
+COMMUNICATION_DISCOVERY_INTERVAL_MS = 5000
+COMMUNICATION_PEER_EXPIRY_MS = 30000
+COMMUNICATION_REPLY_TIMEOUT_MS = 3000
+COMMUNICATION_RETRY_INTERVAL_MS = 500
+COMMUNICATION_MAX_PACKET_BYTES = 512
+COMMUNICATION_MAX_PAYLOAD_BYTES = 160
 ```
 
 The setup AP is intentionally open. `DEVICE_NAME` is used in pages, the startup
@@ -156,7 +320,7 @@ banner, and log prefixes.
 main.py                    Startup and synchronous server loop
 app.py                     Application state and route dispatch
 config.py                  Identity, networking, limits, and routes
-utils.py                   Application-configured logging compatibility helper
+app_logging.py             Application-configured logging helper
 shared_web/
   http.py                  Bounded HTTP parsing, responses, and server socket
   forms.py                 URL and form decoding
@@ -173,12 +337,16 @@ device_dashboard/
   metrics.py               Uptime and processor temperature
   pages.py                 Dashboard and error rendering
   style.css                Dashboard responsive styles
-  templates/               Overview, Network, navigation, and components
+  templates/               Overview, Messages, Network, navigation, and components
+peer_communication/
+  peer.py                   Bounded UDP discovery and command/reply protocol
+  plugin.py                 Enable/disable lifecycle and state persistence
 ```
 
 `network_setup/` is the reusable provisioning component, `shared_web/` provides
 dependency-free HTTP and rendering primitives, and `device_dashboard/` owns
-the connected product interface. `app.py` injects configuration and coordinates
+the connected product interface. `peer_communication/` owns optional local
+device discovery and messaging. `app.py` injects configuration and coordinates
 the transition between provisioning and dashboard modes. Neither UI package
 imports the application's root `config.py` or the other UI package; both may
 use the dependency-free helpers in `shared_web/`.
@@ -225,6 +393,26 @@ is delivered.
 - Check the password and router security mode.
 - Move the board closer to the access point.
 - Power-cycle the board to test credentials from a clean radio state.
+
+### Boards do not appear in Messages
+
+- Enable the communication plugin on every board.
+- Confirm that all boards show the same group name and use the same UDP port.
+- Confirm that every board is connected to the same local network.
+- Select **Refresh devices**, then reload Messages if necessary.
+- If refresh reports that discovery is unavailable, confirm the station still
+  has a valid LAN IP and netmask.
+- Disable guest-network or wireless-client isolation on the router.
+- Remember that inactive peers expire from the list after 30 seconds by
+  default.
+
+### A message times out
+
+- Confirm the target still appears with its current IP address.
+- Check that both boards run the same protocol version; the current format uses
+  `message_type`, `kind`, `request_id`, `node_name`, `group_name`, and `payload`.
+- Keep payloads within `COMMUNICATION_MAX_PAYLOAD_BYTES`.
+- Check for packet loss or client isolation on the Wi-Fi network.
 
 ## Limitations
 

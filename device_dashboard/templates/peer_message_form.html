@@ -1,0 +1,13 @@
+<section class="dashboard-section conversation-section">
+<div class="section-heading"><span>Conversation</span></div>
+<div class="chat-window" aria-label="Recent messages">
+{{? HAS_MESSAGES > chat_messages.html}}
+{{? NO_MESSAGES > chat_empty.html}}
+</div>
+<div class="chat-composer">
+<input id="peer-payload" name="payload" maxlength="{{MAX_PAYLOAD_LENGTH}}" placeholder="Write a message">
+<button type="submit" name="command" value="message">Send</button>
+<button class="ping-button" type="submit" name="command" value="ping">Ping</button>
+<button class="secondary-button" type="submit" formaction="{{CLEAR_CONVERSATION_ROUTE}}" formmethod="post">Clear conversation</button>
+</div>
+</section>

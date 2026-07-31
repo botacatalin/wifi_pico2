@@ -3,7 +3,7 @@
 import network
 import time
 
-from network_setup.networks import sort_networks
+from network_setup.networks import ipv4_broadcast_address, sort_networks
 
 
 def wifi_status_name(status):
@@ -135,6 +135,18 @@ class WiFi:
             return self.sta.ifconfig()[0]
 
         return ""
+
+    def station_broadcast(self):
+        """Return the LAN broadcast address when station networking is ready."""
+
+        if not self.sta.isconnected():
+            return ""
+
+        ip_address, netmask = self.sta.ifconfig()[:2]
+        try:
+            return ipv4_broadcast_address(ip_address, netmask)
+        except (TypeError, ValueError):
+            return ""
 
     def connected(self):
 
@@ -270,34 +282,14 @@ class WiFi:
                     )
                     last_status = status
 
-                if (
-                    status == network.STAT_GOT_IP
-                    and self.sta.isconnected()
-                ):
+                if self.sta.isconnected():
                     ip = self.station_ip()
-
-                    if setup_ap_was_active:
-                        try:
-                            self.restore_setup_ap()
-                        except Exception as exc:
-                            self.log(
-                                "Could not restore setup access point: %s"
-                                % exc
-                            )
-
-                    self.log("----------------------------------------")
-                    self.log("CONNECTED")
-                    self.log("SSID : %s" % ssid)
-                    self.log("IP   : %s" % ip)
-                    self.log("----------------------------------------")
-
-                    password = None
-
-                    return (
-                        True,
-                        ip,
-                        "Connected successfully."
-                    )
+                    if ip and ip != "0.0.0.0":
+                        return self._connection_success(
+                            ssid,
+                            ip,
+                            setup_ap_was_active,
+                        )
 
                 # The driver can briefly expose the previous
                 # attempt's terminal status after connect().
@@ -333,6 +325,18 @@ class WiFi:
 
             final_status = self.sta.status()
 
+            # DHCP may complete between the last polling iteration and the
+            # deadline check. Accept that valid LAN address instead of
+            # disconnecting an established station as a timeout.
+            if self.sta.isconnected():
+                ip = self.station_ip()
+                if ip and ip != "0.0.0.0":
+                    return self._connection_success(
+                        ssid,
+                        ip,
+                        setup_ap_was_active,
+                    )
+
             try:
                 self.sta.disconnect()
             except:
@@ -360,6 +364,28 @@ class WiFi:
         finally:
 
             password = None
+
+    def _connection_success(self, ssid, ip, setup_ap_was_active):
+        if setup_ap_was_active:
+            try:
+                self.restore_setup_ap()
+            except Exception as exc:
+                self.log(
+                    "Could not restore setup access point: %s"
+                    % exc
+                )
+
+        self.log("----------------------------------------")
+        self.log("CONNECTED")
+        self.log("SSID : %s" % ssid)
+        self.log("IP   : %s" % ip)
+        self.log("----------------------------------------")
+
+        return (
+            True,
+            ip,
+            "Connected successfully."
+        )
 
     # =====================================================
     # Status
