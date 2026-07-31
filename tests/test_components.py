@@ -179,7 +179,7 @@ class DevicePageTests(unittest.TestCase):
             }],
         )
 
-        self.assertIn("<h1>Messages</h1>", page)
+        self.assertIn("<h1>Nearby Nodes</h1>", page)
         self.assertIn("<dt>Board ID</dt><dd>nodes-a1b2</dd>", page)
         self.assertIn("<dt>Group name</dt><dd>workshop</dd>", page)
         self.assertIn("peer&lt;one&gt;", page)
@@ -222,7 +222,7 @@ class DevicePageTests(unittest.TestCase):
             peers=[{"name": "peer-one", "ip": "192.168.1.21"}],
         )
 
-        self.assertIn("<h1>Messages</h1>", page)
+        self.assertIn("<h1>Nearby Nodes</h1>", page)
         self.assertIn("<dt>Group name</dt><dd>workshop</dd>", page)
         self.assertIn('nav-link is-active" href="/messages"', page)
         self.assertIn("Devices found", page)

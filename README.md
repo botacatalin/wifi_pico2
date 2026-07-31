@@ -84,7 +84,7 @@ The connected dashboard has four pages:
 
 - **Overview:** system status.
   Processor temperatures at or above 85°C are marked critical.
-- **Messages:** communication-plugin controls, local board/group identity,
+- **Nearby Nodes:** communication-plugin controls, local board/group identity,
   discovered boards with IP addresses, and command/reply messages.
 - **Network:** saved-network controls.
 - **About:** project summary, external README, `nodes.ro@proton.me` contact, and
@@ -102,7 +102,7 @@ address.
 
 ### Enable messaging
 
-Messaging enablement is controlled from the Messages page. Select **Enable** to
+Messaging enablement is controlled from the Nearby Nodes page. Select **Enable** to
 start discovery and command handling, or **Disable** to close the UDP socket and
 hide the board from its peers. The choice is saved in
 `communication_plugin.json` and restored after restart. The plugin starts only
@@ -154,7 +154,7 @@ Select a board, type into the composer below the chat window, and press
 RAM and timestamps them using the viewing browser's local clock. Select
 **Clear conversation** to remove that local history without
 affecting discovered devices or the other board. History is also cleared when
-the plugin stops or the board restarts. While the Messages page is open, it
+the plugin stops or the board restarts. While the Nearby Nodes page is open, it
 checks for conversation changes once per second and reloads automatically when
 a message arrives, so received messages do not require a manual refresh.
 
@@ -420,12 +420,12 @@ is delivered.
 - Move the board closer to the access point.
 - Power-cycle the board to test credentials from a clean radio state.
 
-### Boards do not appear in Messages
+### Boards do not appear in Nearby Nodes
 
 - Enable the communication plugin on every board.
 - Confirm that all boards show the same group name and use the same UDP port.
 - Confirm that every board is connected to the same local network.
-- Select **Refresh devices**, then reload Messages if necessary.
+- Select **Refresh devices**, then reload Nearby Nodes if necessary.
 - If refresh reports that discovery is unavailable, confirm the station still
   has a valid LAN IP and netmask.
 - Disable guest-network or wireless-client isolation on the router.

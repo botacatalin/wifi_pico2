@@ -340,7 +340,7 @@ class ConnectionFlowTests(unittest.TestCase):
         ])
         app.handle_client(messages_client, ("192.168.1.50", 1234))
         messages = messages_client.output.decode("utf-8")
-        self.assertIn("<h1>Messages</h1>", messages)
+        self.assertIn("<h1>Nearby Nodes</h1>", messages)
         self.assertIn("<dt>Board ID</dt><dd>nodes-a1b2</dd>", messages)
         self.assertIn("<dt>Group name</dt><dd>workshop</dd>", messages)
 
