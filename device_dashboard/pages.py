@@ -21,6 +21,8 @@ def device_page(
     communication_group_name="",
     peers=None,
     messages=None,
+    message_revision=0,
+    message_revision_route="/communication/message-revision",
     communication_toggle_route="/communication/toggle",
     communication_refresh_route="/communication/refresh",
     clear_conversation_route="/communication/clear",
@@ -36,12 +38,12 @@ def device_page(
     chat_messages = []
     for index, peer in enumerate(peers or []):
         name = html_escape(peer.get("name", ""))
-        ip = html_escape(peer.get("ip", ""))
+        peer_ip = html_escape(peer.get("ip", ""))
         peer_cards.append(
             '<label class="peer-card"><input type="radio" name="peer" '
             'value="%s"%s><span><strong>%s</strong>'
             '<small>IP address <code>%s</code></small></span></label>'
-            % (name, " checked" if index == 0 else "", name, ip)
+            % (name, " checked" if index == 0 else "", name, peer_ip)
         )
     for message_record in messages or []:
         is_sent = message_record.get("direction") == "sent"
@@ -94,6 +96,8 @@ def device_page(
             "HAS_MESSAGES": bool(chat_messages),
             "NO_MESSAGES": not bool(chat_messages),
             "CHAT_MESSAGES": "".join(chat_messages),
+            "MESSAGE_REVISION": int(message_revision),
+            "MESSAGE_REVISION_ROUTE": html_escape(message_revision_route),
             "COMMUNICATION_TOGGLE_ROUTE": html_escape(communication_toggle_route),
             "COMMUNICATION_REFRESH_ROUTE": html_escape(communication_refresh_route),
             "CLEAR_CONVERSATION_ROUTE": html_escape(clear_conversation_route),

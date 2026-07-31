@@ -50,6 +50,7 @@ class PeerNetwork:
         self.max_payload_bytes = max_payload_bytes
         self.peers = {}
         self.messages = []
+        self.message_revision = 0
         self.last_discovery_at = None
         self.session_id = time.ticks_ms()
         self.next_message_id = 1
@@ -195,6 +196,8 @@ class PeerNetwork:
         return self.messages
 
     def clear_messages(self):
+        if self.messages:
+            self.message_revision += 1
         self.messages = []
 
     def _receive_one(self):
@@ -306,6 +309,7 @@ class PeerNetwork:
             "node": node,
             "payload": payload,
         })
+        self.message_revision += 1
 
     def _send(self, address, packet):
         packet["group_name"] = self.group_name

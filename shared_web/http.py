@@ -208,11 +208,12 @@ def write_all(client, data):
     """
 
     position = 0
+    view = memoryview(data)
 
-    while position < len(data):
+    while position < len(view):
 
         written = client.write(
-            data[position:]
+            view[position:]
         )
 
         # Some MicroPython socket implementations return

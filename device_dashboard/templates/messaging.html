@@ -12,3 +12,19 @@
 {{? COMMUNICATION_DISABLED > communication_disabled.html}}
 </section>
 {{? COMMUNICATION_ENABLED > messaging_devices.html}}
+<script>
+(function () {
+    var revision = {{MESSAGE_REVISION}};
+    function checkMessages() {
+        fetch("{{MESSAGE_REVISION_ROUTE}}", {cache: "no-store"})
+            .then(function (response) { return response.text(); })
+            .then(function (value) {
+                if (parseInt(value, 10) !== revision) {
+                    window.location.reload();
+                }
+            })
+            .catch(function () {});
+    }
+    window.setInterval(checkMessages, 1000);
+}());
+</script>

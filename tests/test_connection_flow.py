@@ -102,6 +102,7 @@ class FakeCommunicationPlugin:
             "node": "nodes-c3d4",
             "payload": "hello",
         }]
+        self.revision = 1
 
     def update(self):
         pass
@@ -115,8 +116,12 @@ class FakeCommunicationPlugin:
     def recent_messages(self):
         return self.messages
 
+    def message_revision(self):
+        return self.revision
+
     def clear_messages(self):
         self.messages = []
+        self.revision += 1
 
     def set_enabled(self, enabled):
         self.enabled = enabled
@@ -133,6 +138,7 @@ class FakeCommunicationPlugin:
                 "node": peer_name,
                 "payload": payload,
             })
+            self.revision += 2
             self.messages.append({
                 "direction": "received",
                 "node": peer_name,
@@ -146,6 +152,24 @@ class FakeCommunicationPlugin:
 
 
 class ConnectionFlowTests(unittest.TestCase):
+    def test_message_revision_endpoint_reports_conversation_changes(self):
+        plugin = FakeCommunicationPlugin()
+        app = App(
+            FakeWiFi(),
+            FakeCredentialStore(),
+            provisioned=True,
+            communication_plugin=plugin,
+        )
+        client = FakeSocket([
+            b"GET /communication/message-revision HTTP/1.1\r\n"
+            b"Host: device\r\n\r\n",
+        ])
+
+        app.handle_client(client, ("192.168.1.50", 1234))
+
+        self.assertIn(b"HTTP/1.1 200 OK", client.output)
+        self.assertTrue(client.output.endswith(b"1"))
+
     def test_dashboard_sends_message_to_selected_discovered_peer(self):
         plugin = FakeCommunicationPlugin()
         app = App(

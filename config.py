@@ -106,6 +106,7 @@ ROUTE_SETUP_STYLE = "/setup.css"
 ROUTE_README = "/README.md"
 ROUTE_COMMUNICATION_TOGGLE = "/communication/toggle"
 ROUTE_COMMUNICATION_REFRESH = "/communication/refresh"
+ROUTE_MESSAGE_REVISION = "/communication/message-revision"
 ROUTE_CLEAR_CONVERSATION = "/communication/clear"
 ROUTE_SEND_COMMAND = "/communication/command"
 

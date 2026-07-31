@@ -153,7 +153,9 @@ composer below the chat window, and press
 **Send**. The chat keeps the eight most recent sent and received messages in
 RAM. Select **Clear conversation** to remove that local history without
 affecting discovered devices or the other board. History is also cleared when
-the plugin stops or the board restarts.
+the plugin stops or the board restarts. While the Messages page is open, it
+checks for conversation changes once per second and reloads automatically when
+a message arrives, so received messages do not require a manual refresh.
 
 Select **Ping** beside Send to test the selected board without entering a
 message. The receiver automatically returns `Ping ACK from <board-id>.` A

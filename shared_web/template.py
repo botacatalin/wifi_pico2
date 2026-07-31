@@ -1,11 +1,25 @@
 """Small file-based template helper for MicroPython."""
 
 
+# Templates are application assets and do not change while the firmware is
+# running. Keeping their source text avoids reopening several small files for
+# every page request, which is comparatively expensive on the Pico filesystem.
+_template_cache = {}
+
+
+def _load_template(path):
+    content = _template_cache.get(path)
+    if content is None:
+        with open(path, "r") as file:
+            content = file.read()
+        _template_cache[path] = content
+    return content
+
+
 def render_template(path, values=None):
     """Render values plus normal and conditional component includes."""
 
-    with open(path, "r") as file:
-        content = file.read()
+    content = _load_template(path)
 
     if values is None:
         values = {}

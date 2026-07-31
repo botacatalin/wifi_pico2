@@ -1,4 +1,5 @@
 import os
+import builtins
 import tempfile
 import time
 import unittest
@@ -25,7 +26,8 @@ from peer_communication import (
     PeerNetwork,
     PluginStateStore,
 )
-from shared_web import parse_form, read_request, send_html, send_response
+from shared_web import parse_form, read_request, render_template, send_html, send_response
+from shared_web import template as template_module
 
 
 class FakeSocket:
@@ -74,6 +76,33 @@ class HttpTests(unittest.TestCase):
             b"Refresh: 5; url=/connection-result\r\n",
             client.output,
         )
+
+
+class TemplateTests(unittest.TestCase):
+    def test_template_source_is_read_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "page.html")
+            with open(path, "w") as file:
+                file.write("Hello {{ NAME }}")
+
+            template_module._template_cache.pop(path, None)
+            real_open = builtins.open
+            reads = []
+
+            def tracking_open(candidate, *args, **kwargs):
+                if candidate == path:
+                    reads.append(candidate)
+                return real_open(candidate, *args, **kwargs)
+
+            builtins.open = tracking_open
+            try:
+                self.assertEqual(render_template(path, {"NAME": "A"}), "Hello A")
+                self.assertEqual(render_template(path, {"NAME": "B"}), "Hello B")
+            finally:
+                builtins.open = real_open
+                template_module._template_cache.pop(path, None)
+
+            self.assertEqual(reads, [path])
 
 
 class CredentialStoreTests(unittest.TestCase):
@@ -155,13 +184,24 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn("peer&lt;one&gt;", page)
         self.assertNotIn("peer<one>", page)
         self.assertIn("IP address <code>192.168.1.21</code>", page)
+        self.assertIn(
+            '<span class="badge ip-badge">Device IP: '
+            '<code>192.168.1.20</code></span>',
+            page,
+        )
+        self.assertIn(
+            '<span class="badge network-badge">Not saved</span>', page
+        )
         self.assertIn('value="peer&lt;one&gt;" checked', page)
-        self.assertNotIn("<script>", page)
+        self.assertNotIn('<script>alert("x")</script>', page)
         self.assertIn('action="/communication/command"', page)
         self.assertIn('formaction="/communication/refresh"', page)
         self.assertIn('formaction="/communication/clear"', page)
         self.assertIn("Clear conversation", page)
         self.assertIn("Refresh devices", page)
+        self.assertIn('fetch("/communication/message-revision"', page)
+        self.assertIn("var revision = 0;", page)
+        self.assertIn("window.location.reload()", page)
         self.assertIn("Plugin settings", page)
         self.assertIn('action="/communication/toggle"', page)
         self.assertIn("Disable", page)
@@ -261,7 +301,22 @@ class DevicePageTests(unittest.TestCase):
             'href="https://github.com/botacatalin/wifi_pico2/blob/main/README.md"',
             page,
         )
-        self.assertIn("GNU General Public License version 2", page)
+        self.assertIn(
+            'href="https://github.com/botacatalin/wifi_pico2/blob/main/LICENSE"',
+            page,
+        )
+        self.assertIn(
+            "LICENSE GPLv2 - Provided without any warranty</a>", page
+        )
+        self.assertIn(
+            '<p class="license-note">2026 - nodes.ro - Contact: '
+            '<a href="mailto:nodes.ro@proton.me">nodes.ro@proton.me</a></p>',
+            page,
+        )
+        self.assertIn(
+            '<p class="build-version">Build - 2026.06.31</p>', page
+        )
+        self.assertNotIn("<strong>Contact</strong>", page)
         self.assertNotIn("Project README", device_page("192.168.1.20"))
 
 
@@ -375,6 +430,7 @@ class CommunicationPluginTests(unittest.TestCase):
         network = PeerNetwork.__new__(PeerNetwork)
         network.node_name = "nodes-a1b2"
         network.messages = []
+        network.message_revision = 0
         network.max_payload_bytes = 160
 
         self.assertEqual(

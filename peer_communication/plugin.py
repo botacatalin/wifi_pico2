@@ -87,6 +87,11 @@ class CommunicationPlugin:
             return []
         return self.network.recent_messages()
 
+    def message_revision(self):
+        if self.network is None:
+            return 0
+        return self.network.message_revision
+
     def clear_messages(self):
         if self.network is not None:
             self.network.clear_messages()

@@ -33,6 +33,7 @@ from config import (
     ROUTE_HEALTH,
     ROUTE_HOME,
     ROUTE_MESSAGES,
+    ROUTE_MESSAGE_REVISION,
     ROUTE_NETWORK,
     ROUTE_README,
     ROUTE_RESCAN,
@@ -131,6 +132,7 @@ class App:
             ("GET", ROUTE_SETUP_STYLE): self._route_setup_style,
             ("GET", ROUTE_STYLE): self._route_style,
             ("GET", ROUTE_README): self._route_readme,
+            ("GET", ROUTE_MESSAGE_REVISION): self._route_message_revision,
             ("POST", ROUTE_COMMUNICATION_TOGGLE): self._route_communication_toggle,
             ("POST", ROUTE_COMMUNICATION_REFRESH): self._route_communication_refresh,
             ("POST", ROUTE_CLEAR_CONVERSATION): self._route_clear_conversation,
@@ -185,6 +187,20 @@ class App:
         address,
     ):
         try:
+            # Responses are deliberately split into a header write and a body
+            # write. Disable Nagle where supported so the small header is not
+            # held while TCP waits for an acknowledgement before sending the
+            # page body. Older MicroPython builds may omit these constants.
+            try:
+                import socket
+                client.setsockopt(
+                    socket.IPPROTO_TCP,
+                    socket.TCP_NODELAY,
+                    1,
+                )
+            except Exception:
+                pass
+
             client.settimeout(
                 SOCKET_TIMEOUT_SECONDS
             )
@@ -682,6 +698,11 @@ class App:
     ):
         self._show_device_page(client, "messages")
 
+    def _route_message_revision(self, client, request):
+        plugin = self.communication_plugin
+        revision = plugin.message_revision() if plugin is not None else 0
+        send_text(client, str(revision))
+
     def _route_network(
         self,
         client,
@@ -811,6 +832,10 @@ class App:
                 messages=(
                     plugin.recent_messages() if plugin is not None else []
                 ),
+                message_revision=(
+                    plugin.message_revision() if plugin is not None else 0
+                ),
+                message_revision_route=ROUTE_MESSAGE_REVISION,
                 communication_toggle_route=ROUTE_COMMUNICATION_TOGGLE,
                 communication_refresh_route=ROUTE_COMMUNICATION_REFRESH,
                 clear_conversation_route=ROUTE_CLEAR_CONVERSATION,
