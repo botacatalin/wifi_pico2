@@ -154,9 +154,6 @@ class CommunicationPlugin:
             return []
         return self.network.available_peers()
 
-    def available_commands(self):
-        return self.COMMANDS
-
     def refresh_devices(self):
         if not self.enabled or self.network is None:
             return False

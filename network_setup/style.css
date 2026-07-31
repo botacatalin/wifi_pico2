@@ -70,11 +70,6 @@ button,
     cursor: pointer;
 }
 
-.button-secondary {
-    background: #fff;
-    color: var(--accent-color);
-}
-
 .notice,
 .connection-error {
     margin: 18px 0;
@@ -90,7 +85,6 @@ button,
     color: #8f2020;
 }
 
-.muted { color: var(--muted-color); }
 code { overflow-wrap: anywhere; }
 
 .success-network { margin-top: 0; }

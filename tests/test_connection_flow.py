@@ -110,9 +110,6 @@ class FakeCommunicationPlugin:
     def available_peers(self):
         return [{"name": "nodes-c3d4", "ip": "192.168.1.21"}]
 
-    def available_commands(self):
-        return (("message", "Message"), ("ping", "Ping"))
-
     def recent_messages(self):
         return self.messages
 
