@@ -11,13 +11,15 @@ test suite. The current version includes:
 
 - complete first-boot provisioning with credential validation and persistence;
 - captive-portal recovery and delayed setup-AP shutdown after success;
-- a four-page connected-device dashboard with health and network controls;
+- a responsive four-page connected-device dashboard with health, messaging,
+  network controls, and a low-distraction interface designed for long-running
+  monitoring on desktop and phone screens;
 - optional, persistent UDP peer discovery, ping, and short message/reply flows;
 - bounded HTTP requests, UDP packets, message history, retries, and timeouts;
 - CYW43 power saving disabled by default for more reliable always-on HTTP and
   multi-board UDP communication.
 
-The host suite currently contains 46 tests covering helpers, rendering,
+The host suite currently contains 49 tests covering helpers, rendering,
 provisioning transitions, AP shutdown scheduling, plugin lifecycle, peer
 discovery, retries, reply matching, deduplication, and Wi-Fi configuration.
 Physical Pico 2 W verification is still required for radio behavior, especially
@@ -90,6 +92,14 @@ The connected dashboard has four pages:
 - **About:** project summary, external README, `nodes.ro@proton.me` contact, and
   GNU GPL v2 license information.
 
+The dashboard uses a neutral surface, restrained green status accents, compact
+device/network badges, and clear card hierarchy so it remains comfortable to
+scan over long sessions. On narrow screens the sidebar becomes a compact
+four-tab navigation bar; metrics and discovered-device cards collapse to a
+single column. Critical temperature and destructive network actions retain
+distinct warning colors. The interface uses no external fonts, scripts, or
+image assets, so it remains self-contained on the Pico filesystem.
+
 **Forget network** removes the saved credentials without interrupting the
 current session. Setup mode returns after restart.
 
@@ -147,7 +157,7 @@ both boards are connected successfully.
 ### Send messages and receive replies
 
 The Discover section places Refresh devices below the Enabled status.
-Discovered boards appear as selectable buttons showing node name and IP
+Discovered boards appear as selectable cards showing node name and IP
 address. The separate Conversation section appears below the device list.
 Select a board, type into the composer below the chat window, and press
 **Send**. The chat keeps the eight most recent sent and received messages in
@@ -359,7 +369,7 @@ network_setup/
 device_dashboard/
   metrics.py               Uptime and processor temperature
   pages.py                 Dashboard and error rendering
-  style.css                Dashboard responsive styles
+  style.css                Responsive dashboard visual system and states
   templates/               Overview, Messages, Network, navigation, and components
 peer_communication/
   peer.py                   Bounded UDP discovery and command/reply protocol

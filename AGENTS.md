@@ -40,6 +40,21 @@ The target is the physical Pico 2 W wireless board, not a desktop Python
 environment or a non-wireless Pico 2. Prefer simple, allocation-conscious
 MicroPython-compatible code over desktop-Python abstractions or dependencies.
 
+## Current project status
+
+- The provisioning, captive-portal recovery, saved-credential startup,
+  dashboard, and optional peer-communication flows are implemented.
+- The connected dashboard currently has Overview, Nearby Nodes, Network, and
+  About pages. Its visual system uses calm neutral surfaces, restrained green
+  status accents, responsive cards, and compact four-tab navigation on narrow
+  screens. It is self-contained and loads no external visual assets.
+- The dependency-free host suite currently contains 49 tests. It covers HTTP
+  helpers, rendering, provisioning transitions, AP shutdown scheduling,
+  messaging lifecycle and transport behavior, and Wi-Fi configuration.
+- Host validation does not replace physical Pico 2 W verification. Radio and
+  captive-portal behavior must still be checked on hardware after networking,
+  timing, or MicroPython-version changes.
+
 ## Repository map
 
 - `main.py` is the MicroPython boot entry point and synchronous server loop.
@@ -122,6 +137,16 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
 - Preserve request-size limits, socket timeouts, `Connection: close`, and the
   partial-write handling in `write_all()`.
 - Keep HTML/CSS compact and usable on phone-sized captive-portal browsers.
+- Keep the connected dashboard comfortable for sustained viewing: preserve
+  readable contrast, quiet neutral surfaces, restrained accent use, obvious
+  warning states, and clear information hierarchy. Avoid animation, visual
+  clutter, or decorative assets that increase transfer or rendering cost.
+- Preserve the responsive dashboard behavior: desktop sidebar navigation
+  becomes a compact four-tab bar on narrow screens, while metric and peer-card
+  grids collapse to one column. Verify both layouts when changing templates or
+  styles.
+- The dashboard must remain self-contained. Do not add web fonts, CDN assets,
+  external UI libraries, or required internet-hosted scripts.
 - Preserve package directories and their `__init__.py` files because the full
   tree is copied directly to the Pico filesystem.
 
