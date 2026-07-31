@@ -198,7 +198,7 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn('<time data-message-age-ms="', page)
         self.assertIn("messageDate.toLocaleTimeString", page)
         self.assertIn('action="/communication/command"', page)
-        self.assertIn('formaction="/communication/refresh"', page)
+        self.assertIn('action="/communication/refresh"', page)
         self.assertIn('formaction="/communication/clear"', page)
         self.assertIn("Clear conversation", page)
         self.assertIn("Refresh devices", page)
@@ -208,6 +208,8 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn("Discover", page)
         self.assertIn('action="/communication/toggle"', page)
         self.assertIn("Disable", page)
+        self.assertLess(page.index("Enabled"), page.index("Refresh devices"))
+        self.assertLess(page.index("Refresh devices"), page.index("Devices found"))
         self.assertLess(page.index("<dt>Board ID</dt>"), page.index("Devices found"))
 
     def test_messaging_owns_settings_and_device_operations(self):

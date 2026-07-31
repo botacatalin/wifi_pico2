@@ -1,8 +1,6 @@
 <form class="chat-form" method="post" action="{{SEND_COMMAND_ROUTE}}">
 <section class="dashboard-section messaging-workspace">
-<div class="section-heading section-heading-actions"><span>Devices found</span>
-<button class="secondary-button peer-refresh" type="submit" formaction="{{COMMUNICATION_REFRESH_ROUTE}}" formmethod="post">Refresh devices</button>
-</div>
+<div class="section-heading"><span>Devices found</span></div>
 {{? HAS_PEERS > peer_list.html}}
 {{? NO_PEERS > peer_empty.html}}
 </section>

@@ -322,17 +322,6 @@ textarea {
     font-weight: 700;
 }
 
-.peer-refresh {
-    width: auto;
-    margin: 0 0 0 auto;
-    padding: 9px 12px;
-    font-size: 14px;
-}
-
-.section-heading-actions::after {
-    display: none;
-}
-
 .chat-window {
     display: flex;
     flex-direction: column;
@@ -439,6 +428,10 @@ textarea {
 
 .plugin-status.is-enabled {
     border-color: var(--accent-color);
+}
+
+.plugin-status + .plugin-status {
+    margin-top: 12px;
 }
 
 .plugin-status strong,

@@ -146,10 +146,10 @@ both boards are connected successfully.
 
 ### Send messages and receive replies
 
-The Devices found section places Refresh devices at the top right. Discovered
-boards appear as selectable buttons showing node name and IP address. The
-separate Conversation section appears below it. Select a board, type into the
-composer below the chat window, and press
+The Discover section places Refresh devices below the Enabled status.
+Discovered boards appear as selectable buttons showing node name and IP
+address. The separate Conversation section appears below the device list.
+Select a board, type into the composer below the chat window, and press
 **Send**. The chat keeps the eight most recent sent and received messages in
 RAM and timestamps them using the viewing browser's local clock. Select
 **Clear conversation** to remove that local history without
