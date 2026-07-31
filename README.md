@@ -4,6 +4,25 @@ MicroPython firmware for provisioning a Raspberry Pi Pico 2 W onto a 2.4 GHz
 Wi-Fi network, serving a local dashboard, and exchanging command/reply messages
 with other enabled boards on the LAN.
 
+## Project status
+
+The core firmware is implemented and covered by a dependency-free host-side
+test suite. The current version includes:
+
+- complete first-boot provisioning with credential validation and persistence;
+- captive-portal recovery and delayed setup-AP shutdown after success;
+- a four-page connected-device dashboard with health and network controls;
+- optional, persistent UDP peer discovery, ping, and short message/reply flows;
+- bounded HTTP requests, UDP packets, message history, retries, and timeouts;
+- CYW43 power saving disabled by default for more reliable always-on HTTP and
+  multi-board UDP communication.
+
+The host suite currently contains 46 tests covering helpers, rendering,
+provisioning transitions, AP shutdown scheduling, plugin lifecycle, peer
+discovery, retries, reply matching, deduplication, and Wi-Fi configuration.
+Physical Pico 2 W verification is still required for radio behavior, especially
+after changing MicroPython versions, routers, or Wi-Fi timing.
+
 ## How it works
 
 On first boot, the board:
@@ -189,11 +208,11 @@ prevents an unrelated response from completing the request.
 
 Commands retry with the same request ID during the bounded reply window. The
 receiver remembers a small number of recent IDs, so a retried command returns
-its previous reply without executing twice. The sender shows the reply as a
-Messages-page notice, and the target displays its latest accepted `message`
-payload. Request IDs include a per-plugin-session value so disabling,
-re-enabling, or restarting a sender does not collide with an ID still cached by
-another board. Deduplication keys also include the message type.
+its previous reply without executing twice. Successful requests and replies are
+shown in the conversation, while failures appear as Messages-page notices.
+Request IDs include a per-plugin-session value so disabling, re-enabling, or
+restarting a sender does not collide with an ID still cached by another board.
+Deduplication keys also include the message type.
 
 Selecting a peer for a command gives it a fresh 30-second liveness window. A
 temporary ping or message timeout therefore does not immediately remove a
@@ -289,6 +308,7 @@ AP_IP = "192.168.4.1"
 HTTP_PORT = 80
 STATIC_CACHE_SECONDS = 3600
 CONNECT_TIMEOUT_MS = 12000
+WIFI_POWER_MANAGEMENT = 0xA11140
 CONNECTION_PAGE_SETTLE_MS = 250
 CONNECTION_POLL_INTERVAL_MS = 1000
 CONNECTION_REQUEST_TIMEOUT_MS = 16000
@@ -390,6 +410,9 @@ is delivered.
 ### Wi-Fi connection fails
 
 - Use a 2.4 GHz network; Pico 2 W does not support 5 GHz Wi-Fi.
+- The default configuration disables CYW43 power saving because this board is
+  an always-on HTTP and UDP server. Set `WIFI_POWER_MANAGEMENT = None` to keep
+  the firmware default if lower power use matters more than responsiveness.
 - Check the password and router security mode.
 - Move the board closer to the access point.
 - Power-cycle the board to test credentials from a clean radio state.
@@ -417,6 +440,8 @@ is delivered.
 ## Limitations
 
 - One HTTP request is processed at a time.
+- Sending a peer command can occupy that request loop for up to the configured
+  three-second reply timeout.
 - Dashboard addresses come from DHCP.
 - mDNS, static LAN IPs, OTA updates, TLS, and dashboard authentication are not
   implemented.

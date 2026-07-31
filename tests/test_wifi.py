@@ -26,14 +26,15 @@ class FakeWLAN:
         self.interface = interface
         self.active_state = interface == network.AP_IF
         self.connection_checks = 0
+        self.config_calls = []
 
     def active(self, enabled=None):
         if enabled is not None:
             self.active_state = bool(enabled)
         return self.active_state
 
-    def config(self, **unused_options):
-        pass
+    def config(self, **options):
+        self.config_calls.append(options)
 
     def ifconfig(self, unused_config=None):
         if self.interface == network.STA_IF:
@@ -72,6 +73,27 @@ class WiFiConnectionTests(unittest.TestCase):
         self.assertTrue(connected)
         self.assertEqual(ip, "192.168.1.20")
         self.assertEqual(message, "Connected successfully.")
+
+    def test_station_power_management_is_reapplied_after_interface_reset(self):
+        wifi = WiFi(
+            power_management=0xA11140,
+            logger=lambda unused_message: None,
+        )
+
+        connected, unused_ip, unused_message = wifi.connect("Home", "secret")
+
+        self.assertTrue(connected)
+        self.assertEqual(wifi.sta.config_calls, [{"pm": 0xA11140}])
+
+    def test_setup_ap_configures_station_power_management(self):
+        wifi = WiFi(
+            power_management=0xA11140,
+            logger=lambda unused_message: None,
+        )
+
+        wifi.start_setup_ap()
+
+        self.assertEqual(wifi.sta.config_calls, [{"pm": 0xA11140}])
 
 
 if __name__ == "__main__":

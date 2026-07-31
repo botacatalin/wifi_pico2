@@ -32,6 +32,7 @@ from config import (
     SERVER_BIND_IP,
     WIFI_CREDENTIALS_FILE,
     WIFI_CREDENTIALS_TEMP_FILE,
+    WIFI_POWER_MANAGEMENT,
 )
 
 from shared_web import create_server
@@ -89,6 +90,7 @@ def main():
         device_name=DEVICE_NAME,
         connect_timeout_ms=CONNECT_TIMEOUT_MS,
         connect_status_grace_ms=CONNECT_STATUS_GRACE_MS,
+        power_management=WIFI_POWER_MANAGEMENT,
         logger=log,
     )
     credential_store = CredentialStore(

@@ -26,6 +26,11 @@ AP_DNS = AP_IP
 WIFI_CREDENTIALS_FILE = "wifi_credentials.json"
 WIFI_CREDENTIALS_TEMP_FILE = "wifi_credentials.tmp"
 
+# Disable CYW43 power saving for this always-on HTTP and UDP server. The
+# default idle power saving can make Pico W-series boards less responsive.
+# Set to None to keep the MicroPython firmware default instead.
+WIFI_POWER_MANAGEMENT = 0xA11140
+
 # =========================================================
 # HTTP server
 # =========================================================

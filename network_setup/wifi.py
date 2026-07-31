@@ -34,6 +34,7 @@ class WiFi:
         device_name="Pico 2 W",
         connect_timeout_ms=12000,
         connect_status_grace_ms=1500,
+        power_management=None,
         logger=print,
     ):
 
@@ -47,6 +48,7 @@ class WiFi:
         self.device_name = device_name
         self.connect_timeout_ms = connect_timeout_ms
         self.connect_status_grace_ms = connect_status_grace_ms
+        self.power_management = power_management
         self.log = logger
 
         self.ap = network.WLAN(network.AP_IF)
@@ -83,6 +85,7 @@ class WiFi:
     def start_setup_ap(self):
 
         self.sta.active(True)
+        self._configure_station()
         self.ap.active(True)
         self._configure_setup_ap()
 
@@ -209,6 +212,19 @@ class WiFi:
     # Connect
     # =====================================================
 
+    def _configure_station(self):
+        """Apply optional CYW43 settings whenever STA_IF is activated."""
+
+        if self.power_management is None:
+            return
+
+        try:
+            self.sta.config(pm=self.power_management)
+        except Exception as exc:
+            # Older or non-CYW43 MicroPython builds may not expose this option.
+            # Connectivity is still preferable to failing the whole setup flow.
+            self.log("Could not configure Wi-Fi power management: %s" % exc)
+
     def connect(self, ssid, password):
 
         if not ssid:
@@ -233,6 +249,7 @@ class WiFi:
             self.sta.active(False)
             time.sleep_ms(300)
             self.sta.active(True)
+            self._configure_station()
             time.sleep_ms(300)
 
             if self.sta.isconnected():
