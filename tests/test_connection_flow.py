@@ -241,6 +241,35 @@ class ConnectionFlowTests(unittest.TestCase):
             "Communication plugin disabled", messages.output.decode("utf-8")
         )
 
+    def test_dashboard_does_not_show_enabled_status_notice(self):
+        plugin = FakeCommunicationPlugin()
+        plugin.enabled = False
+        app = App(
+            FakeWiFi(),
+            FakeCredentialStore(),
+            provisioned=True,
+            communication_plugin=plugin,
+        )
+        body = b"enabled=1"
+        client = FakeSocket([(
+            b"POST /communication/toggle HTTP/1.1\r\nContent-Length: 9\r\n\r\n"
+            + body
+        )])
+
+        app.handle_client(client, ("192.168.1.50", 1234))
+
+        self.assertTrue(plugin.enabled)
+        self.assertEqual(app.server_message, "")
+
+        messages = FakeSocket([
+            b"GET /messages HTTP/1.1\r\nHost: device\r\n\r\n",
+        ])
+        app.handle_client(messages, ("192.168.1.50", 1234))
+        page = messages.output.decode("utf-8")
+        self.assertNotIn("Communication plugin enabled", page)
+        self.assertIn("<strong>Enabled</strong>", page)
+        self.assertIn("Device discovery", page)
+
     def test_dashboard_refreshes_peer_discovery(self):
         plugin = FakeCommunicationPlugin()
         app = App(

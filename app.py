@@ -726,8 +726,9 @@ class App:
             form = parse_form(request.body)
             enabled = form.get("enabled") == "1"
             if plugin.set_enabled(enabled):
-                state = "enabled" if enabled else "disabled"
-                self.server_message = "Communication plugin %s." % state
+                self.server_message = (
+                    "" if enabled else "Communication plugin disabled."
+                )
             else:
                 self.server_message = "Could not change communication plugin state."
         send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
