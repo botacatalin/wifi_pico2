@@ -11,16 +11,18 @@ test suite. The current version includes:
 
 - complete first-boot provisioning with credential validation and persistence;
 - captive-portal recovery and delayed setup-AP shutdown after success;
-- a responsive four-page connected-device dashboard with health, messaging,
+- a responsive five-page connected-device dashboard with health, messaging,
   network controls, and a low-distraction interface designed for long-running
   monitoring on desktop and phone screens;
+- automatic discovery of modular Device Features from `plugins/`, including
+  onboard LED and processor-temperature controls;
 - optional, persistent UDP peer discovery, ping, and short message/reply flows;
 - bounded HTTP requests, UDP packets, message history, retries, and timeouts;
 - CYW43 power saving disabled by default for more reliable always-on HTTP and
   multi-board UDP communication.
 
-The host suite currently contains 49 tests covering helpers, rendering,
-provisioning transitions, AP shutdown scheduling, plugin lifecycle, peer
+The host suite currently contains 67 tests covering helpers, rendering,
+provisioning transitions, AP shutdown scheduling, feature and messaging lifecycles, peer
 discovery, retries, reply matching, deduplication, and Wi-Fi configuration.
 Physical Pico 2 W verification is still required for radio behavior, especially
 after changing MicroPython versions, routers, or Wi-Fi timing.
@@ -82,26 +84,113 @@ The successful browser flow is therefore:
 On later boots, saved credentials are tried first. If the connection fails, the
 board returns to setup mode.
 
-The connected dashboard has four pages:
+The connected dashboard has five pages:
 
 - **Overview:** system status.
   Processor temperatures at or above 85°C are marked critical.
-- **Nearby Nodes:** communication-plugin controls, local board/group identity,
+- **Nodes:** communication-plugin controls, local board/group identity,
   discovered boards with IP addresses, and command/reply messages.
 - **Network:** saved-network controls.
+- **Device Features:** automatically discovered, drop-in board controls.
 - **About:** project summary, external README, `nodes.ro@proton.me` contact, and
   GNU GPL v2 license information.
 
 The dashboard uses a neutral surface, restrained green status accents, compact
 device/network badges, and clear card hierarchy so it remains comfortable to
 scan over long sessions. On narrow screens the sidebar becomes a compact
-four-tab navigation bar; metrics and discovered-device cards collapse to a
+five-tab navigation bar; metrics and discovered-device cards collapse to a
 single column. Critical temperature and destructive network actions retain
 distinct warning colors. The interface uses no external fonts, scripts, or
 image assets, so it remains self-contained on the Pico filesystem.
 
 **Forget network** removes the saved credentials without interrupting the
 current session. Setup mode returns after restart.
+
+## Device Features
+
+See [`README_ADD_PLUGINS.md`](README_ADD_PLUGINS.md) for the concise feature
+interface and copy-and-paste installation guide.
+
+At startup, `FeatureManager` scans each subfolder in `plugins/`. A valid feature
+is listed automatically on the **Device Features** page; no central import,
+route, or dashboard template needs to be edited. The bundled `onboard_led` feature uses
+MicroPython's `Pin("LED", Pin.OUT)` mapping and provides a button that toggles
+the Pico 2 W's built-in LED. The bundled `processor_temperature` feature reads
+the RP2350 internal temperature sensor independently of the Overview page.
+
+There is no configured feature count limit. The practical limit is the Pico's
+available flash and RAM, so features should keep imports, state, and rendered
+HTML compact.
+
+To install a feature, copy its complete folder into `plugins/` and restart the
+board. Folder names use lowercase letters, numbers, and underscores and must
+start with a letter. Each folder contains an `__init__.py` and a `feature.py`.
+Its class must inherit the versioned
+`DeviceFeature` interface and its module must expose `create_feature()`.
+`feature_id` may contain lowercase letters, numbers, and hyphens, and must be
+unique:
+
+```python
+from plugins import DeviceFeature
+
+
+class ExampleFeature(DeviceFeature):
+    feature_id = "example"
+    name = "Example"
+    description = "What this feature controls."
+    # sensor, actuator, or integration
+    feature_type = "sensor"
+    # True when the user must connect a sensor, relay, or other component.
+    requires_external_hardware = True
+    # Public values advertised during discovery and returned by read().
+    exposed_fields = ("temperature_c", "connected")
+
+    def render(self, message=""):
+        return "<header>...</header>"
+
+    def read(self):
+        return {"temperature_c": 23.4, "connected": True}
+
+    # Actuators override this. The inherited implementation rejects actions.
+    def handle_action(self, action, form):
+        return "Action completed."
+
+
+def create_feature():
+    return ExampleFeature()
+```
+
+Forms post to `/features/<feature_id>/<action>`. The interface supplies no-op
+`update()` and `close()` lifecycle methods that features may override. A feature
+owns its hardware imports, state, templates, and actions and should escape every
+dynamic value it places in HTML. Features are executable firmware code, so
+install them only from sources you trust.
+
+The Device Features page marks every feature as either **Built-in hardware** or
+**External hardware required**. Omitting `requires_external_hardware` defaults
+to built-in for compatibility, but new features should declare it explicitly.
+The onboard LED and processor-temperature features use hardware built into every
+Pico 2 W and are marked accordingly. External sensor features should set the
+flag to `True` and document their wiring and power requirements in their own
+folder.
+
+Features are also classified as **Sensor**, **Actuator**, or **Integration**.
+An actuator such as the LED changes hardware through `handle_action()` and
+shares its current state through `read()`. A sensor reads its attached hardware
+and returns one or more named values. `exposed_fields` declares those names and
+`read()` returns a compact dictionary with exactly the same keys. Field names
+use lowercase letters, numbers, and underscores. Values may be strings,
+numbers, booleans, or `None`. The manager validates and normalizes this output
+centrally before it is shared, and the communication layer enforces the
+configured payload limit.
+
+Every compatible feature implements `read()`. Peer discovery automatically
+advertises its feature ID and exposed field names, so Nodes shows what
+each remote board provides and uses those IDs as query suggestions. Select a
+discovered board and feature, then choose **Read value**. The receiving board
+resolves the requested `feature_id` locally and returns its current value.
+Missing, failed, mismatched, and oversized outputs produce bounded error
+replies without exposing feature internals.
 
 ## Messaging
 
@@ -112,7 +201,7 @@ address.
 
 ### Enable messaging
 
-Messaging enablement is controlled from the Nearby Nodes page. Select **Enable** to
+Messaging enablement is controlled from the Nodes page. Select **Enable** to
 start discovery and command handling, or **Disable** to close the UDP socket and
 hide the board from its peers. The choice is saved in
 `communication_plugin.json` and restored after restart. The plugin starts only
@@ -164,14 +253,14 @@ Select a board, type into the composer below the chat window, and press
 RAM and timestamps them using the viewing browser's local clock. Select
 **Clear conversation** to remove that local history without
 affecting discovered devices or the other board. History is also cleared when
-the plugin stops or the board restarts. While the Nearby Nodes page is open, it
+the plugin stops or the board restarts. While the Nodes page is open, it
 checks for conversation changes once per second and reloads automatically when
 a message arrives, so received messages do not require a manual refresh.
 
 Select **Ping** beside Send to test the selected board without entering a
 message. The receiver automatically returns `Ping ACK from <board-id>.` A
 `message` receiver currently echoes the original payload in its reply; this is
-the extension point for future message-processing behavior. Successful message
+the feature point for future message-processing behavior. Successful message
 echoes and Ping ACKs appear inside the chat window, replacing its “No messages
 yet” state. On the sender, the request uses the sent-message color and the
 reply uses the received-message color. The receiving board records the inverse:
@@ -180,8 +269,14 @@ reply. Locally sent bubbles are labeled **This Device**; received bubbles show
 the remote board ID. Retries reuse cached replies and do not duplicate chat
 entries. Only failures are shown as page notices.
 
+Features can also be queried from this page. The requester sends the
+selected feature ID, and the current remote result appears in the conversation,
+for example `Onboard LED: state=on` or
+`Processor Temperature: temperature_c=42.0`.
+
 Application packets use the same `message_type` for a request and its response:
-`message` for text delivery and `ping` for availability checks. `kind`
+`message` for text delivery, `ping` for availability checks, and `feature_read`
+for an exact read-only feature query whose payload is the feature ID. `kind`
 distinguishes `request`, successful `reply`, and rejected `error` packets. A
 separate `command` field and boolean `reply` field are not used.
 
@@ -214,7 +309,8 @@ Successful response:
 A rejected request returns the same structure with `kind: "error"` and an
 explanation in `payload`. This means the target received the request but could
 not accept it. It differs from a timeout, where no matching response arrived.
-Ping uses the same fields with `message_type: "ping"`.
+Ping uses the same fields with `message_type: "ping"`. Feature reads use
+`message_type: "feature_read"` and return the display value in `payload`.
 
 Matching the message type, request ID, sender name, and source IP address
 prevents an unrelated response from completing the request.
@@ -249,7 +345,8 @@ separation between board groups but is not a security boundary.
 
 1. Install current Pico 2 W-compatible MicroPython firmware.
 2. Copy all project files to the board, preserving the `network_setup/`,
-   `shared_web/`, `device_dashboard/`, and `peer_communication/` directories.
+   `shared_web/`, `device_dashboard/`, `peer_communication/`, and `plugins/`
+   directories.
 3. Power-cycle the board.
 
 MicroPython runs `main.py` automatically. Do not copy or commit
@@ -292,8 +389,11 @@ Common captive-portal probe routes also display setup.
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/` | System overview |
-| `GET` | `/messages` | Device discovery and command/reply messaging |
+| `GET` | `/nodes` | Device discovery and command/reply messaging |
 | `GET` | `/network` | Saved-network information |
+| `GET` | `/features` | List installed Device Features |
+| `GET` | `/features/<feature-id>` | Display one feature |
+| `POST` | `/features/<feature-id>/<action>` | Run an feature action |
 | `GET` | `/about` | Project, contact, documentation, and license information |
 | `POST` | `/communication/toggle` | Enable or disable messaging |
 | `POST` | `/communication/refresh` | Broadcast device discovery now |
@@ -370,17 +470,23 @@ device_dashboard/
   metrics.py               Uptime and processor temperature
   pages.py                 Dashboard and error rendering
   style.css                Responsive dashboard visual system and states
-  templates/               Overview, Messages, Network, navigation, and components
+  templates/               Overview, Nodes, Device Features, Network, and components
 peer_communication/
   peer.py                   Bounded UDP discovery and command/reply protocol
   plugin.py                 Enable/disable lifecycle and state persistence
+plugins/
+  interface.py              Versioned feature contract and lifecycle defaults
+  manager.py                Feature discovery and shared lifecycle
+  onboard_led/              Self-contained onboard LED feature and template
+  processor_temperature/    Self-contained processor-temperature feature
 ```
 
 `network_setup/` is the reusable provisioning component, `shared_web/` provides
 dependency-free HTTP and rendering primitives, and `device_dashboard/` owns
 the connected product interface. `peer_communication/` owns optional local
 device discovery and messaging. `app.py` injects configuration and coordinates
-the transition between provisioning and dashboard modes. Neither UI package
+the transition between provisioning and dashboard modes. `plugins/` contains
+self-contained Device Features loaded by convention. Neither UI package
 imports the application's root `config.py` or the other UI package; both may
 use the dependency-free helpers in `shared_web/`.
 
@@ -430,12 +536,12 @@ is delivered.
 - Move the board closer to the access point.
 - Power-cycle the board to test credentials from a clean radio state.
 
-### Boards do not appear in Nearby Nodes
+### Boards do not appear in Nodes
 
 - Enable the communication plugin on every board.
 - Confirm that all boards show the same group name and use the same UDP port.
 - Confirm that every board is connected to the same local network.
-- Select **Refresh devices**, then reload Nearby Nodes if necessary.
+- Select **Refresh devices**, then reload Nodes if necessary.
 - If refresh reports that discovery is unavailable, confirm the station still
   has a valid LAN IP and netmask.
 - Disable guest-network or wireless-client isolation on the router.

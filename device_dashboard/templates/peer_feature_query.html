@@ -1,0 +1,8 @@
+<div class="remote-feature-query">
+<label for="remote-feature"><strong>Read node feature</strong><small>Query the selected node for a current feature value.</small></label>
+<div>
+<input id="remote-feature" type="text" name="feature_id" list="feature-suggestions" placeholder="Feature ID" required>
+<datalist id="feature-suggestions">{{QUERY_FEATURE_OPTIONS}}</datalist>
+<button type="submit" name="command" value="feature_read">Read value</button>
+</div>
+</div>

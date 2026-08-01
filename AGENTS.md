@@ -30,6 +30,8 @@ The two packages have intentionally separate responsibilities:
   has connected to Wi-Fi. It owns dashboard pages, metrics, errors, and styles.
 - `peer_communication/` owns the optional local UDP discovery and bounded
   command/reply protocol without depending on either UI package.
+- `plugins/` owns the versioned drop-in sensor, actuator, and integration
+  interface, discovery manager, and self-contained hardware plugins.
 - `shared_web/` provides reusable bounded HTTP, form, escaping, and template
   helpers without depending on application configuration or either UI package.
 - `app.py` is the integration layer between those components. It selects setup
@@ -44,13 +46,15 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
 
 - The provisioning, captive-portal recovery, saved-credential startup,
   dashboard, and optional peer-communication flows are implemented.
-- The connected dashboard currently has Overview, Nearby Nodes, Network, and
-  About pages. Its visual system uses calm neutral surfaces, restrained green
-  status accents, responsive cards, and compact four-tab navigation on narrow
-  screens. It is self-contained and loads no external visual assets.
-- The dependency-free host suite currently contains 49 tests. It covers HTTP
+- The connected dashboard currently has Overview, Nodes, Network,
+  Device Features, and About pages. Its visual system uses calm neutral surfaces,
+  restrained green status accents, responsive cards, and compact five-tab
+  navigation on narrow screens. It is self-contained and loads no external
+  visual assets.
+- The dependency-free host suite currently contains 67 tests. It covers HTTP
   helpers, rendering, provisioning transitions, AP shutdown scheduling,
-  messaging lifecycle and transport behavior, and Wi-Fi configuration.
+  feature discovery and remote reads, messaging lifecycle and transport
+  behavior, and Wi-Fi configuration.
 - Host validation does not replace physical Pico 2 W verification. Radio and
   captive-portal behavior must still be checked on hardware after networking,
   timing, or MicroPython-version changes.
@@ -75,6 +79,8 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
   `device_dashboard/templates/`.
 - `peer_communication/plugin.py` owns messaging enablement and saved state;
   `peer_communication/peer.py` owns UDP discovery and command/reply transport.
+- `plugins/interface.py` defines the required device-feature API;
+  `plugins/manager.py` validates, discovers, and owns installed plugins.
 - Each UI component owns its stylesheet.
 - `README.md` is the user-facing installation, behavior, and troubleshooting
   guide; update it when visible behavior, configuration, or routes change.
@@ -137,12 +143,17 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
 - Preserve request-size limits, socket timeouts, `Connection: close`, and the
   partial-write handling in `write_all()`.
 - Keep HTML/CSS compact and usable on phone-sized captive-portal browsers.
+- Every drop-in device feature must inherit `DeviceFeature`, use the current API
+  version, declare `exposed_fields`, implement `render()` and a matching
+  dictionary-returning `read()`, and expose `create_feature()`.
+  Hardware access, templates, actions, and optional lifecycle overrides belong
+  inside that feature's folder.
 - Keep the connected dashboard comfortable for sustained viewing: preserve
   readable contrast, quiet neutral surfaces, restrained accent use, obvious
   warning states, and clear information hierarchy. Avoid animation, visual
   clutter, or decorative assets that increase transfer or rendering cost.
 - Preserve the responsive dashboard behavior: desktop sidebar navigation
-  becomes a compact four-tab bar on narrow screens, while metric and peer-card
+  becomes a compact five-tab bar on narrow screens, while metric and peer-card
   grids collapse to one column. Verify both layouts when changing templates or
   styles.
 - The dashboard must remain self-contained. Do not add web fonts, CDN assets,

@@ -37,6 +37,8 @@ class PeerNetwork:
         max_packet_bytes=512,
         max_payload_bytes=160,
         udp_socket=None,
+        request_handler=None,
+        feature_catalog_provider=None,
     ):
         self.node_name = node_name
         self.group_name = group_name
@@ -55,6 +57,8 @@ class PeerNetwork:
         self.session_id = time.ticks_ms()
         self.next_message_id = 1
         self.recent_commands = {}
+        self.request_handler = request_handler
+        self.feature_catalog_provider = feature_catalog_provider
 
         self.socket = udp_socket if udp_socket is not None else socket.socket(
             socket.AF_INET,
@@ -95,9 +99,9 @@ class PeerNetwork:
             return False
 
         try:
-            self._send(
+            self._send_discovery(
                 (address, self.port),
-                {"message_type": "hello", "node_name": self.node_name},
+                "hello",
             )
             return True
         except OSError:
@@ -112,10 +116,16 @@ class PeerNetwork:
         records = []
         for name in sorted(self.peers):
             record = self.peers[name]
-            records.append({
+            display_record = {
                 "name": name,
                 "ip": record["address"][0],
-            })
+            }
+            features = record.get("features", ())
+            if features:
+                display_record["features"] = features
+            if record.get("features_truncated", False):
+                display_record["features_truncated"] = True
+            records.append(display_record)
         return records
 
     def send_command(self, peer_name, command, payload=""):
@@ -140,7 +150,12 @@ class PeerNetwork:
             "payload": payload,
         }
 
-        display_payload = payload if command == "message" else "Ping"
+        if command == "message":
+            display_payload = payload
+        elif command == "feature_read":
+            display_payload = "Read feature: %s" % payload
+        else:
+            display_payload = "Ping"
         self._remember_message("sent", peer_name, display_payload)
 
         # Give a peer selected by the user a full liveness window. A command
@@ -225,9 +240,10 @@ class PeerNetwork:
             "hello_reply",
             "message",
             "ping",
+            "feature_read",
         ):
             return None
-        if packet_type in ("message", "ping"):
+        if packet_type in ("message", "ping", "feature_read"):
             if packet.get("kind") not in ("request", "reply", "error"):
                 return None
             request_id = packet.get("request_id")
@@ -240,18 +256,27 @@ class PeerNetwork:
         if not isinstance(node, str) or not node or node == self.node_name:
             return packet, address
 
+        previous_peer = self.peers.get(node, {})
+        features = previous_peer.get("features", ())
+        features_truncated = previous_peer.get(
+            "features_truncated", False
+        )
+        if "features" in packet:
+            features = self._validated_features(packet["features"])
+            features_truncated = bool(
+                packet.get("features_truncated", False)
+            )
         self.peers[node] = {
             "address": (address[0], self.port),
             "last_seen": time.ticks_ms(),
+            "features": features,
+            "features_truncated": features_truncated,
         }
 
         if packet_type == "hello":
-            self._send(
-                address,
-                {"message_type": "hello_reply", "node_name": self.node_name},
-            )
+            self._send_discovery(address, "hello_reply")
         elif (
-            packet_type in ("message", "ping")
+            packet_type in ("message", "ping", "feature_read")
             and packet.get("kind") == "request"
         ):
             request_id = packet["request_id"]
@@ -299,6 +324,12 @@ class PeerNetwork:
             self._remember_message("received", node, payload)
             self._remember_message("sent", node, payload)
             return True, payload
+        request_handler = getattr(self, "request_handler", None)
+        if request_handler is not None:
+            try:
+                return request_handler(message_type, payload)
+            except Exception:
+                return False, "The command could not be completed."
         return False, "Unsupported command."
 
     def _remember_message(self, direction, node, payload):
@@ -318,6 +349,52 @@ class PeerNetwork:
         if len(data) > self.max_packet_bytes:
             raise ValueError("Peer message is too large.")
         self.socket.sendto(data, address)
+
+    def _send_discovery(self, address, message_type):
+        features = []
+        if self.feature_catalog_provider is not None:
+            try:
+                features = list(self.feature_catalog_provider())
+            except Exception:
+                features = []
+
+        packet = {
+            "message_type": message_type,
+            "node_name": self.node_name,
+            "features": features,
+        }
+        feature_count = len(features)
+        while True:
+            packet["features_truncated"] = len(features) < feature_count
+            try:
+                self._send(address, packet)
+                return
+            except ValueError:
+                if not features:
+                    raise
+                del features[-1]
+
+    @staticmethod
+    def _validated_features(features):
+        records = []
+        if not isinstance(features, list):
+            return records
+        for feature in features:
+            if not isinstance(feature, dict):
+                continue
+            feature_id = feature.get("id")
+            fields = feature.get("fields")
+            if not isinstance(feature_id, str) or not feature_id:
+                continue
+            if not isinstance(fields, (list, tuple)) or not fields:
+                continue
+            valid_fields = []
+            for field in fields:
+                if isinstance(field, str) and field:
+                    valid_fields.append(field)
+            if valid_fields:
+                records.append({"id": feature_id, "fields": valid_fields})
+        return records
 
     def _expire_peers(self, now):
         expired = []

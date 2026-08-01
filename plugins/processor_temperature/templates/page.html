@@ -1,0 +1,14 @@
+<header class="dashboard-header">
+<div>
+<p class="eyebrow">Device Feature</p>
+<h1>Processor Temperature</h1>
+<p class="dashboard-subtitle">A current reading from the RP2350's internal temperature sensor.</p>
+</div>
+</header>
+<section class="dashboard-section">
+<div class="metric-card temperature-card {{STATE_CLASS}}">
+<span class="metric-label">Processor temperature</span>
+<strong class="metric-value">{{TEMPERATURE}}</strong>
+<small class="metric-threshold">Critical threshold: {{TEMPERATURE_LIMIT}} °C</small>
+</div>
+</section>

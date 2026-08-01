@@ -26,6 +26,10 @@ from peer_communication import (
     PeerNetwork,
     PluginStateStore,
 )
+from plugins import DeviceFeature, FeatureManager
+from plugins import manager as feature_manager_module
+from plugins.onboard_led.feature import OnboardLedFeature
+from plugins.processor_temperature.feature import ProcessorTemperatureFeature
 from shared_web import parse_form, read_request, render_template, send_html, send_response
 from shared_web import template as template_module
 
@@ -163,10 +167,47 @@ class ProvisioningPageTests(unittest.TestCase):
 
 
 class DevicePageTests(unittest.TestCase):
+    def test_features_page_lists_discovered_features(self):
+        feature = type("Feature", (), {
+            "feature_id": "sample",
+            "name": "Sample Control",
+            "description": "A small test feature.",
+            "feature_type": "integration",
+            "requires_external_hardware": False,
+        })()
+        page = device_page(
+            "192.168.1.20", page="features", features=[feature]
+        )
+
+        self.assertIn("<h1>Device Features</h1>", page)
+        self.assertIn('nav-link is-active" href="/features"', page)
+        self.assertIn('class="nav-group"', page)
+        self.assertIn("Nodes &amp; features", page)
+        self.assertIn('href="/features/sample"', page)
+        self.assertIn("Sample Control", page)
+        self.assertIn("Built-in hardware", page)
+
+    def test_features_page_marks_external_hardware(self):
+        feature = type("Feature", (), {
+            "feature_id": "external-sensor",
+            "name": "External Sensor",
+            "description": "Reads an attached sensor.",
+            "feature_type": "sensor",
+            "requires_external_hardware": True,
+        })()
+
+        page = device_page(
+            "192.168.1.20", page="features", features=[feature]
+        )
+
+        self.assertIn("External hardware required", page)
+        self.assertIn(">Sensor</em>", page)
+        self.assertIn("hardware-badge is-external", page)
+
     def test_messaging_lists_and_escapes_discovered_peers(self):
         page = device_page(
             "192.168.1.20",
-            page="messages",
+            page="nodes",
             node_name="nodes-a1b2",
             communication_group_name="workshop",
             communication_enabled=True,
@@ -179,7 +220,7 @@ class DevicePageTests(unittest.TestCase):
             }],
         )
 
-        self.assertIn("<h1>Nearby Nodes</h1>", page)
+        self.assertIn("<h1>Nodes</h1>", page)
         self.assertIn("<dt>Board ID</dt><dd>nodes-a1b2</dd>", page)
         self.assertIn("<dt>Group name</dt><dd>workshop</dd>", page)
         self.assertIn("peer&lt;one&gt;", page)
@@ -212,19 +253,58 @@ class DevicePageTests(unittest.TestCase):
         self.assertLess(page.index("Refresh devices"), page.index("Devices found"))
         self.assertLess(page.index("<dt>Board ID</dt>"), page.index("Devices found"))
 
+    def test_messaging_offers_features_for_remote_query(self):
+        page = device_page(
+            "192.168.1.20",
+            page="nodes",
+            communication_enabled=True,
+            peers=[{
+                "name": "peer-one",
+                "ip": "192.168.1.21",
+                "features": [{
+                    "id": "onboard-led",
+                    "fields": ["state"],
+                }],
+            }],
+        )
+
+        self.assertIn("Read node feature", page)
+        self.assertIn('name="feature_id"', page)
+        self.assertIn('value="onboard-led"', page)
+        self.assertIn('name="command" value="feature_read"', page)
+
+    def test_nodes_page_shows_remote_feature_manifest(self):
+        page = device_page(
+            "192.168.1.20",
+            page="nodes",
+            communication_enabled=True,
+            peers=[{
+                "name": "peer-one",
+                "ip": "192.168.1.21",
+                "features": [{
+                    "id": "weather-sensor",
+                    "fields": ["temperature_c", "humidity_percent"],
+                }],
+            }],
+        )
+
+        self.assertIn("Shared features", page)
+        self.assertIn("weather-sensor", page)
+        self.assertIn("temperature_c, humidity_percent", page)
+
     def test_messaging_owns_settings_and_device_operations(self):
         page = device_page(
             "192.168.1.20",
-            page="messages",
+            page="nodes",
             node_name="nodes-a1b2",
             communication_group_name="workshop",
             communication_enabled=True,
             peers=[{"name": "peer-one", "ip": "192.168.1.21"}],
         )
 
-        self.assertIn("<h1>Nearby Nodes</h1>", page)
+        self.assertIn("<h1>Nodes</h1>", page)
         self.assertIn("<dt>Group name</dt><dd>workshop</dd>", page)
-        self.assertIn('nav-link is-active" href="/messages"', page)
+        self.assertIn('nav-link is-active" href="/nodes"', page)
         self.assertIn("Devices found", page)
         self.assertIn("Conversation", page)
         self.assertLess(page.index("Devices found"), page.index("Conversation"))
@@ -243,7 +323,7 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn('class="ping-button"', page)
         sent_page = device_page(
             "192.168.1.20",
-            page="messages",
+            page="nodes",
             communication_enabled=True,
             peers=[{"name": "peer-one", "ip": "192.168.1.21"}],
             messages=[{
@@ -259,14 +339,14 @@ class DevicePageTests(unittest.TestCase):
     def test_messaging_shows_discovery_state_without_peers(self):
         page = device_page(
             "192.168.1.20",
-            page="messages",
+            page="nodes",
             communication_enabled=True,
         )
         self.assertIn("Searching for other boards", page)
 
     def test_messaging_hides_peers_when_plugin_is_disabled(self):
         page = device_page(
-            "192.168.1.20", page="messages", communication_enabled=False
+            "192.168.1.20", page="nodes", communication_enabled=False
         )
         self.assertNotIn("Devices found", page)
         self.assertNotIn("Searching for other boards", page)
@@ -281,7 +361,7 @@ class DevicePageTests(unittest.TestCase):
             uptime="12 min",
             temperature="42.0 °C",
         )
-        messages = device_page("192.168.1.20", page="messages")
+        messages = device_page("192.168.1.20", page="nodes")
         network = device_page(
             "192.168.1.20",
             page="network",
@@ -323,6 +403,157 @@ class DevicePageTests(unittest.TestCase):
         )
         self.assertNotIn("<strong>Contact</strong>", page)
         self.assertNotIn("Project README", device_page("192.168.1.20"))
+
+
+class FakePin:
+    def __init__(self, initial=0):
+        self.current = initial
+
+    def value(self, new_value=None):
+        if new_value is not None:
+            self.current = new_value
+        return self.current
+
+
+class DeviceFeatureTests(unittest.TestCase):
+    def test_led_feature_toggles_injected_pin_and_renders_state(self):
+        pin = FakePin()
+        feature = OnboardLedFeature(pin=pin)
+
+        self.assertIn("Turn LED on", feature.render())
+        message = feature.handle_action("set", {"state": "on"})
+
+        self.assertEqual(pin.value(), 1)
+        self.assertEqual(message, "The onboard LED is now on.")
+        self.assertIn("Turn LED off", feature.render(message))
+
+    def test_processor_temperature_feature_reads_and_renders_sensor(self):
+        class Sensor:
+            def read_u16(self):
+                return 13506
+
+        feature = ProcessorTemperatureFeature(sensor=Sensor())
+
+        self.assertEqual(feature.read(), {"temperature_c": 42.1})
+        self.assertIn("Processor Temperature", feature.render())
+        self.assertIn("42.1", feature.render())
+
+    def test_manager_registers_and_finds_injected_features(self):
+        feature = OnboardLedFeature(pin=FakePin())
+        manager = FeatureManager(features=[feature])
+
+        self.assertEqual(manager.features(), (feature,))
+        self.assertIs(manager.get("onboard-led"), feature)
+        self.assertEqual(
+            manager.read_output("onboard-led"),
+            (True, "Onboard LED: state=off"),
+        )
+
+    def test_manager_rejects_reading_that_does_not_match_manifest(self):
+        feature = OnboardLedFeature(pin=FakePin())
+        feature.exposed_fields = ("unexpected",)
+        manager = FeatureManager(features=[feature])
+
+        ok, message = manager.read_output("onboard-led")
+
+        self.assertFalse(ok)
+        self.assertEqual(message, "The feature output could not be read.")
+
+    def test_discovery_has_no_fixed_feature_count_and_loads_each_folder(self):
+        folders = ["plugin_%d" % index for index in range(24)]
+        real_listdir = feature_manager_module.os.listdir
+        real_import = builtins.__import__
+
+        def fake_listdir(path):
+            if path == "test_plugins":
+                return folders + ["__init__.py", "manager.py"]
+            return real_listdir(path)
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            prefix = "test_plugins."
+            if name.startswith(prefix) and name.endswith(".feature"):
+                folder = name[len(prefix):-len(".feature")]
+                index = int(folder.split("_")[1])
+                feature = type("Feature", (DeviceFeature,), {
+                    "feature_id": "test-%d" % index,
+                    "name": "Test %d" % index,
+                    "description": "Test feature",
+                    "exposed_fields": ("state",),
+                    "render": lambda self, message="": message,
+                    "handle_action": lambda self, action, form: "done",
+                    "read": lambda self: {"state": "ready"},
+                })()
+                return type("Module", (), {
+                    "create_feature": staticmethod(lambda feature=feature: feature),
+                })()
+            return real_import(name, globals, locals, fromlist, level)
+
+        feature_manager_module.os.listdir = fake_listdir
+        builtins.__import__ = fake_import
+        try:
+            manager = FeatureManager(
+                directory="test_plugins",
+                package="test_plugins",
+            )
+        finally:
+            feature_manager_module.os.listdir = real_listdir
+            builtins.__import__ = real_import
+
+        self.assertEqual(len(manager.features()), 24)
+        for index in range(24):
+            self.assertIsNotNone(manager.get("test-%d" % index))
+
+    def test_one_failing_update_does_not_block_other_features(self):
+        updates = []
+
+        def feature(feature_id, update):
+            return type("Feature", (DeviceFeature,), {
+                "feature_id": feature_id,
+                "name": feature_id,
+                "description": "Test feature",
+                "exposed_fields": ("state",),
+                "render": lambda self, message="": message,
+                "handle_action": lambda self, action, form: "done",
+                "read": lambda self: {"state": "ready"},
+                "update": update,
+            })()
+
+        def fail(unused_self):
+            raise RuntimeError("failed")
+
+        manager = FeatureManager(features=[
+            feature("failing", fail),
+            feature("working", lambda unused_self: updates.append("working")),
+        ])
+        manager.update()
+
+        self.assertEqual(updates, ["working"])
+
+    def test_manager_rejects_ids_that_are_not_safe_url_segments(self):
+        feature = OnboardLedFeature(pin=FakePin())
+        feature.feature_id = "unsafe/id"
+
+        with self.assertRaises(ValueError):
+            FeatureManager(features=[feature])
+
+    def test_manager_rejects_incompatible_interface_version(self):
+        feature = OnboardLedFeature(pin=FakePin())
+        feature.api_version = 99
+
+        with self.assertRaises(ValueError):
+            FeatureManager(features=[feature])
+
+    def test_manager_rejects_feature_missing_required_read_method(self):
+        class IncompleteFeature(DeviceFeature):
+            feature_id = "incomplete"
+            name = "Incomplete"
+            description = "Missing required output."
+
+            def render(self, message=""):
+                return message
+
+        with self.assertRaises(ValueError):
+            FeatureManager(features=[IncompleteFeature()])
 
 
 class FakePeerNetwork:
@@ -469,6 +700,51 @@ class CommunicationPluginTests(unittest.TestCase):
             (False, "Unsupported command."),
         )
 
+    def test_feature_read_is_dispatched_to_injected_handler(self):
+        network = PeerNetwork.__new__(PeerNetwork)
+        network.node_name = "nodes-a1b2"
+        network.messages = []
+        network.message_revision = 0
+        network.max_payload_bytes = 160
+        network.request_handler = lambda command, payload: (
+            True,
+            "%s=%s" % (command, payload),
+        )
+
+        self.assertEqual(
+            network._execute_request(
+                "nodes-c3d4", "feature_read", "onboard-led"
+            ),
+            (True, "feature_read=onboard-led"),
+        )
+
+    def test_udp_feature_read_request_returns_current_output(self):
+        packet = (
+            b'{"message_type":"feature_read","kind":"request",'
+            b'"request_id":"request-9","node_name":"peer-one",'
+            b'"payload":"onboard-led","group_name":"workshop"}'
+        )
+        udp_socket = FakeDatagramSocket([
+            (packet, ("192.168.1.21", 4242)),
+        ])
+        network = PeerNetwork(
+            "nodes-a1b2",
+            "workshop",
+            request_handler=lambda command, payload: (
+                True,
+                "Onboard LED: On",
+            ),
+            udp_socket=udp_socket,
+        )
+
+        network._receive_one()
+
+        response = udp_socket.sent[0][0].decode("utf-8")
+        self.assertIn('"message_type": "feature_read"', response)
+        self.assertIn('"kind": "reply"', response)
+        self.assertIn('"request_id": "request-9"', response)
+        self.assertIn('"payload": "Onboard LED: On"', response)
+
     def test_discovery_uses_configured_broadcast_address(self):
         udp_socket = FakeDatagramSocket()
         network = PeerNetwork(
@@ -480,6 +756,27 @@ class CommunicationPluginTests(unittest.TestCase):
 
         self.assertTrue(network.discover())
         self.assertEqual(udp_socket.sent[0][1], ("192.168.7.255", 4242))
+
+    def test_discovery_truncates_feature_manifest_to_packet_limit(self):
+        udp_socket = FakeDatagramSocket()
+        manifest = []
+        for index in range(10):
+            manifest.append({
+                "id": "sensor-%d" % index,
+                "fields": ("temperature_c", "humidity_percent"),
+            })
+        network = PeerNetwork(
+            "nodes-a1b2",
+            "workshop",
+            max_packet_bytes=220,
+            feature_catalog_provider=lambda: manifest,
+            udp_socket=udp_socket,
+        )
+
+        self.assertTrue(network.discover())
+        packet = udp_socket.sent[0][0].decode("utf-8")
+        self.assertIn('"features_truncated": true', packet)
+        self.assertLess(packet.count('"id":'), len(manifest))
 
     def test_unreachable_broadcast_waits_for_next_discovery_interval(self):
         network = PeerNetwork(
@@ -597,7 +894,15 @@ class CommunicationPluginTests(unittest.TestCase):
         socket_a = FakeDatagramSocket([
             (hello, ("192.168.1.22", 4242)),
         ])
-        node_a = PeerNetwork("node-a", "workshop", udp_socket=socket_a)
+        node_a = PeerNetwork(
+            "node-a",
+            "workshop",
+            feature_catalog_provider=lambda: [{
+                "id": "onboard-led",
+                "fields": ("state",),
+            }],
+            udp_socket=socket_a,
+        )
 
         node_a._receive_one()
         reply, unused_address = socket_a.sent[0]
@@ -614,7 +919,14 @@ class CommunicationPluginTests(unittest.TestCase):
         )
         self.assertEqual(
             node_b.available_peers(),
-            [{"name": "node-a", "ip": "192.168.1.21"}],
+            [{
+                "name": "node-a",
+                "ip": "192.168.1.21",
+                "features": [{
+                    "id": "onboard-led",
+                    "fields": ["state"],
+                }],
+            }],
         )
 
     def test_udp_sender_matches_reply_to_its_request(self):

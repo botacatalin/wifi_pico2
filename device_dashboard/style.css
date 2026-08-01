@@ -95,6 +95,25 @@ code {
     padding: 12px;
 }
 
+.nav-group {
+    display: grid;
+    gap: 3px;
+    margin: 3px 0;
+    padding: 7px 5px 5px;
+    border: 1px solid var(--panel-border);
+    border-radius: 13px;
+    background: rgba(247, 250, 247, .72);
+}
+
+.nav-group-label {
+    padding: 0 7px 3px;
+    color: var(--muted-color);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
 .nav-link {
     display: flex;
     align-items: center;
@@ -349,7 +368,7 @@ button:active {
     background: var(--danger-color);
 }
 
-.plugin-status,
+.control-status,
 .settings-panel {
     display: flex;
     align-items: center;
@@ -361,23 +380,23 @@ button:active {
     border-radius: 13px;
 }
 
-.plugin-status.is-enabled {
+.control-status.is-enabled {
     background: var(--accent-soft);
     border-color: #d5e6d1;
 }
 
-.plugin-status + .plugin-status {
+.control-status + .control-status {
     margin-top: 12px;
 }
 
-.plugin-status strong,
-.plugin-status span,
+.control-status strong,
+.control-status span,
 .settings-copy strong,
 .settings-copy span {
     display: block;
 }
 
-.plugin-status span,
+.control-status span,
 .settings-copy span {
     margin-top: 3px;
     color: var(--muted-color);
@@ -385,13 +404,13 @@ button:active {
     line-height: 1.45;
 }
 
-.plugin-status form,
+.control-status form,
 .forget-action {
     flex: 0 0 auto;
     margin: 0;
 }
 
-.plugin-status button,
+.control-status button,
 .forget-action button {
     width: auto;
     min-width: 92px;
@@ -486,6 +505,25 @@ button:active {
 .peer-card code {
     color: var(--ink);
     font-weight: 700;
+}
+
+.peer-card .peer-features {
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid var(--panel-border);
+}
+
+.peer-features b,
+.peer-features span {
+    display: block;
+}
+
+.peer-features b {
+    margin-bottom: 2px;
+    color: var(--ink);
+    font-size: 10px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
 }
 
 .chat-window {
@@ -622,6 +660,111 @@ button:active {
     font-size: 22px;
 }
 
+.feature-list {
+    display: grid;
+    gap: 12px;
+}
+
+.feature-back-link {
+    display: inline-block;
+    margin: 0 0 14px;
+    color: var(--muted-color);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.feature-back-link:hover {
+    color: var(--accent-color);
+}
+
+.hardware-badge {
+    display: inline-block;
+    width: fit-content;
+    margin-top: 8px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: #294f33;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+
+.hardware-badge.is-external {
+    background: #fff6e8;
+    color: #8a5512;
+}
+
+.hardware-badge.type-badge {
+    margin-right: 5px;
+    background: #eef2f5;
+    color: #46545d;
+}
+
+.state-pill {
+    flex: 0 0 auto;
+    min-width: 58px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: #eef1ef;
+    color: var(--muted-color);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.state-pill.is-on {
+    background: var(--accent-soft);
+    color: #294f33;
+}
+
+.control-status small {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted-color);
+}
+
+.control-status + form button {
+    margin-top: 14px;
+}
+
+.remote-feature-query {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+}
+
+.remote-feature-query label strong,
+.remote-feature-query label small {
+    display: block;
+}
+
+.remote-feature-query label small {
+    color: var(--muted-color);
+}
+
+.remote-feature-query > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.remote-feature-query input,
+.remote-feature-query button {
+    margin: 0;
+}
+
+.remote-feature-query button {
+    width: auto;
+    white-space: nowrap;
+}
+
 .license-heading {
     padding-top: 20px;
     border-top: 1px solid var(--panel-border);
@@ -666,9 +809,17 @@ button:active {
     }
 
     .dashboard-nav {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 4px;
         padding: 0 6px 7px;
+    }
+
+    .nav-group {
+        display: contents;
+    }
+
+    .nav-group-label {
+        display: none;
     }
 
     .nav-link {
@@ -721,6 +872,14 @@ button:active {
         font-size: 13px;
     }
 
+    .remote-feature-query > div {
+        grid-template-columns: 1fr;
+    }
+
+    .remote-feature-query button {
+        width: 100%;
+    }
+
     .dashboard-header h1 {
         font-size: 26px;
     }
@@ -731,13 +890,13 @@ button:active {
 }
 
 @media (max-width: 380px) {
-    .plugin-status,
+    .control-status,
     .settings-panel {
         align-items: stretch;
         flex-direction: column;
     }
 
-    .plugin-status button,
+    .control-status button,
     .forget-action button {
         width: 100%;
     }

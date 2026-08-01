@@ -58,6 +58,7 @@ class CommunicationPlugin:
     COMMANDS = (
         ("message", "Message"),
         ("ping", "Ping"),
+        ("feature_read", "Read feature"),
     )
 
     def __init__(
@@ -69,6 +70,8 @@ class CommunicationPlugin:
         max_payload_bytes=160,
         logger=print,
         network_factory=PeerNetwork,
+        feature_reader=None,
+        feature_catalog_provider=None,
         **network_options
     ):
         self.node_name = node_name
@@ -78,6 +81,8 @@ class CommunicationPlugin:
         self.network_factory = network_factory
         self.network_options = network_options
         self.max_payload_bytes = max_payload_bytes
+        self.feature_reader = feature_reader
+        self.feature_catalog_provider = feature_catalog_provider
         self.network = None
         self.enabled = self.state_store.load(enabled_default)
         self.network_ready = False
@@ -168,6 +173,8 @@ class CommunicationPlugin:
             return False, "Unsupported command."
         if command == "message" and not payload:
             return False, "Please enter a message."
+        if command == "feature_read" and not payload:
+            return False, "Please select a feature to read."
         if len(payload.encode("utf-8")) > self.max_payload_bytes:
             return False, "The command payload is too long."
         return self.network.send_command(peer_name, command, payload)
@@ -190,8 +197,21 @@ class CommunicationPlugin:
             node_name=self.node_name,
             group_name=self.group_name,
             max_payload_bytes=self.max_payload_bytes,
+            request_handler=self._handle_request,
+            feature_catalog_provider=self.feature_catalog_provider,
             **self.network_options
         )
+
+    def _handle_request(self, message_type, payload):
+        if message_type != "feature_read" or self.feature_reader is None:
+            return False, "Unsupported command."
+        if len(payload.encode("utf-8")) > self.max_payload_bytes:
+            return False, "The feature ID is too long."
+        ok, reply = self.feature_reader(payload)
+        reply = str(reply)
+        if len(reply.encode("utf-8")) > self.max_payload_bytes:
+            return False, "The feature output is too long."
+        return bool(ok), reply
 
     def _stop(self):
         if self.network is None:

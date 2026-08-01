@@ -32,6 +32,8 @@ from config import (
     CONNECTION_PAGE_SETTLE_MS,
     CONNECTION_START_DELAY_MS,
 )
+from plugins import FeatureManager
+from plugins.onboard_led.feature import OnboardLedFeature
 
 
 class FakeSocket:
@@ -148,7 +150,77 @@ class FakeCommunicationPlugin:
         return self.enabled
 
 
+class FakePin:
+    def __init__(self):
+        self.current = 0
+
+    def value(self, new_value=None):
+        if new_value is not None:
+            self.current = new_value
+        return self.current
+
+
 class ConnectionFlowTests(unittest.TestCase):
+    def test_feature_is_listed_and_handles_led_action(self):
+        pin = FakePin()
+        manager = FeatureManager(features=[OnboardLedFeature(pin=pin)])
+        app = App(
+            FakeWiFi(),
+            FakeCredentialStore(),
+            provisioned=True,
+            feature_manager=manager,
+        )
+        listing = FakeSocket([
+            b"GET /features HTTP/1.1\r\nHost: device\r\n\r\n",
+        ])
+        app.handle_client(listing, ("192.168.1.50", 1234))
+        self.assertIn(b"/features/onboard-led", listing.output)
+
+        body = b"state=on"
+        action = FakeSocket([(
+            b"POST /features/onboard-led/set HTTP/1.1\r\nContent-Length: 8\r\n\r\n"
+            + body
+        )])
+        app.handle_client(action, ("192.168.1.50", 1234))
+
+        self.assertEqual(pin.value(), 1)
+        self.assertIn(b"303 See Other", action.output)
+        self.assertIn(b"Location: /features/onboard-led", action.output)
+
+        detail = FakeSocket([
+            b"GET /features/onboard-led HTTP/1.1\r\nHost: device\r\n\r\n",
+        ])
+        app.handle_client(detail, ("192.168.1.50", 1234))
+        self.assertIn(b"The onboard LED is now on.", detail.output)
+        self.assertIn(b"Turn LED off", detail.output)
+        self.assertIn(b"Back to Device Features", detail.output)
+
+    def test_dashboard_queries_remote_feature_by_id(self):
+        communication = FakeCommunicationPlugin()
+        manager = FeatureManager(features=[OnboardLedFeature(pin=FakePin())])
+        app = App(
+            FakeWiFi(),
+            FakeCredentialStore(),
+            provisioned=True,
+            communication_plugin=communication,
+            feature_manager=manager,
+        )
+        body = b"peer=nodes-c3d4&command=feature_read&feature_id=onboard-led"
+        client = FakeSocket([(
+            b"POST /communication/command HTTP/1.1\r\nContent-Length: "
+            + str(len(body)).encode("ascii")
+            + b"\r\n\r\n"
+            + body
+        )])
+
+        app.handle_client(client, ("192.168.1.50", 1234))
+
+        self.assertEqual(
+            communication.sent,
+            [("nodes-c3d4", "feature_read", "onboard-led")],
+        )
+        self.assertIn(b"303 See Other", client.output)
+
     def test_message_revision_endpoint_reports_conversation_changes(self):
         plugin = FakeCommunicationPlugin()
         app = App(
@@ -194,7 +266,7 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertEqual(app.server_message, "")
 
         messages = FakeSocket([
-            b"GET /messages HTTP/1.1\r\nHost: device\r\n\r\n",
+            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
         app.handle_client(messages, ("192.168.1.50", 1234))
         response = messages.output.decode("utf-8")
@@ -231,7 +303,7 @@ class ConnectionFlowTests(unittest.TestCase):
         )
 
         messages = FakeSocket([
-            b"GET /messages HTTP/1.1\r\nHost: device\r\n\r\n",
+            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
         app.handle_client(messages, ("192.168.1.50", 1234))
         self.assertIn(
@@ -259,7 +331,7 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertEqual(app.server_message, "")
 
         messages = FakeSocket([
-            b"GET /messages HTTP/1.1\r\nHost: device\r\n\r\n",
+            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
         app.handle_client(messages, ("192.168.1.50", 1234))
         page = messages.output.decode("utf-8")
@@ -286,7 +358,7 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertEqual(app.server_message, "")
 
         messages = FakeSocket([
-            b"GET /messages HTTP/1.1\r\nHost: device\r\n\r\n",
+            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
         app.handle_client(messages, ("192.168.1.50", 1234))
         self.assertNotIn(
@@ -333,11 +405,11 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertNotIn("<dt>Group name</dt>", response)
 
         messages_client = FakeSocket([
-            b"GET /messages HTTP/1.1\r\nHost: device\r\n\r\n",
+            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
         app.handle_client(messages_client, ("192.168.1.50", 1234))
         messages = messages_client.output.decode("utf-8")
-        self.assertIn("<h1>Nearby Nodes</h1>", messages)
+        self.assertIn("<h1>Nodes</h1>", messages)
         self.assertIn("<dt>Board ID</dt><dd>nodes-a1b2</dd>", messages)
         self.assertIn("<dt>Group name</dt><dd>workshop</dd>", messages)
 

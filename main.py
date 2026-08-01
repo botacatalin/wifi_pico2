@@ -46,6 +46,7 @@ from peer_communication import (
     PluginStateStore,
     default_node_name,
 )
+from plugins import FeatureManager
 
 
 def connect_with_saved_credentials(wifi, credential_store):
@@ -109,6 +110,8 @@ def main():
         wifi.start_setup_ap()
         wifi.scan(force=True)
 
+    feature_manager = FeatureManager(logger=log)
+
     communication_plugin = CommunicationPlugin(
         node_name=(
             COMMUNICATION_NODE_NAME
@@ -130,6 +133,8 @@ def main():
         max_packet_bytes=COMMUNICATION_MAX_PACKET_BYTES,
         max_payload_bytes=COMMUNICATION_MAX_PAYLOAD_BYTES,
         logger=log,
+        feature_reader=feature_manager.read_output,
+        feature_catalog_provider=feature_manager.discovery_manifest,
     )
 
     app = App(
@@ -138,6 +143,7 @@ def main():
         provisioned=connected,
         connected_ssid=saved_ssid if connected else "",
         communication_plugin=communication_plugin,
+        feature_manager=feature_manager,
     )
 
     server = create_server(
@@ -201,6 +207,7 @@ def main():
         pass
 
     communication_plugin.close()
+    feature_manager.close()
 
     log(
         "Server stopped."

@@ -1,0 +1,1 @@
+"""Processor temperature device feature."""

@@ -23,6 +23,7 @@ from config import (
     COMMUNICATION_MAX_PAYLOAD_BYTES,
     PROCESSOR_TEMPERATURE_CRITICAL_C,
     ROUTE_ABOUT,
+    ROUTE_FEATURES,
     ROUTE_CLEAR_CONVERSATION,
     ROUTE_COMMUNICATION_TOGGLE,
     ROUTE_COMMUNICATION_REFRESH,
@@ -32,7 +33,7 @@ from config import (
     ROUTE_FORGET_WIFI,
     ROUTE_HEALTH,
     ROUTE_HOME,
-    ROUTE_MESSAGES,
+    ROUTE_NODES,
     ROUTE_MESSAGE_REVISION,
     ROUTE_NETWORK,
     ROUTE_README,
@@ -81,6 +82,7 @@ class App:
         provisioned=False,
         connected_ssid="",
         communication_plugin=None,
+        feature_manager=None,
     ):
         self.wifi = wifi
         self.credential_store = (
@@ -96,6 +98,8 @@ class App:
         self.device_ip = wifi.station_ip() if provisioned else ""
         self.connected_ssid = connected_ssid
         self.communication_plugin = communication_plugin
+        self.feature_manager = feature_manager
+        self.feature_notice = None
         self.server_message = ""
         self.server_message_page = None
         self.connection_state = "connected" if provisioned else "idle"
@@ -121,9 +125,10 @@ class App:
 
         self.device_routes = {
             ("GET", ROUTE_HOME): self._route_device_home,
-            ("GET", ROUTE_MESSAGES): self._route_messages,
+            ("GET", ROUTE_NODES): self._route_nodes,
             ("GET", ROUTE_NETWORK): self._route_network,
             ("GET", ROUTE_ABOUT): self._route_about,
+            ("GET", ROUTE_FEATURES): self._route_features,
             ("GET", ROUTE_CONNECT): self._route_provisioning_success,
             ("GET", ROUTE_CONNECTION_STATUS): self._route_connection_status,
             ("GET", ROUTE_CONNECTION_RESULT): self._route_connection_result,
@@ -160,6 +165,9 @@ class App:
                 self.communication_plugin.update()
             except Exception as exc:
                 log("Communication update failed: %s" % exc)
+
+        if self.provisioned and self.feature_manager is not None:
+            self.feature_manager.update()
 
         if self.pending_connection is not None:
             if time.ticks_diff(
@@ -333,6 +341,8 @@ class App:
         )
 
         if handler is None:
+            if self._dispatch_feature_route(client, request):
+                return
             self._send_not_found(
                 client,
                 "The requested device page was not found.",
@@ -691,12 +701,12 @@ class App:
     ):
         self._show_device_page(client, "overview")
 
-    def _route_messages(
+    def _route_nodes(
         self,
         client,
         request,
     ):
-        self._show_device_page(client, "messages")
+        self._show_device_page(client, "nodes")
 
     def _route_message_revision(self, client, request):
         plugin = self.communication_plugin
@@ -717,8 +727,67 @@ class App:
     ):
         self._show_device_page(client, "about")
 
+    def _route_features(self, client, request):
+        self._show_device_page(client, "features")
+
+    def _dispatch_feature_route(self, client, request):
+        if (
+            self.feature_manager is None
+            or not request.path.startswith(ROUTE_FEATURES + "/")
+        ):
+            return False
+
+        remainder = request.path[len(ROUTE_FEATURES) + 1:]
+        parts = remainder.split("/")
+        feature = self.feature_manager.get(parts[0])
+        if feature is None:
+            return False
+
+        if request.method == "GET" and len(parts) == 1:
+            self._show_feature_page(client, feature)
+            return True
+
+        if request.method == "POST" and len(parts) == 2 and parts[1]:
+            try:
+                message = feature.handle_action(
+                    parts[1], parse_form(request.body)
+                ) or ""
+            except ValueError as exc:
+                message = str(exc)
+            except Exception as exc:
+                log("Feature %s action failed: %s" % (feature.feature_id, exc))
+                message = "The feature action could not be completed."
+            self.feature_notice = (feature.feature_id, message)
+            send_redirect(
+                client,
+                ROUTE_FEATURES + "/" + feature.feature_id,
+                status="303 See Other",
+            )
+            return True
+
+        return False
+
+    def _show_feature_page(self, client, feature):
+        message = ""
+        if self.feature_notice is not None:
+            feature_id, notice = self.feature_notice
+            if feature_id == feature.feature_id:
+                message = notice
+            self.feature_notice = None
+        try:
+            content = feature.render(message)
+        except Exception as exc:
+            log("Feature %s render failed: %s" % (feature.feature_id, exc))
+            send_html(
+                client,
+                error_page("The feature page could not be displayed."),
+                status="500 Internal Server Error",
+            )
+            return
+        self._show_device_page(client, "features", content)
+
     def _route_communication_toggle(self, client, request):
-        self.server_message_page = "messages"
+        self.server_message_page = "nodes"
         plugin = self.communication_plugin
         if plugin is None:
             self.server_message = "The communication plugin is unavailable."
@@ -731,14 +800,18 @@ class App:
                 )
             else:
                 self.server_message = "Could not change communication plugin state."
-        send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
+        send_redirect(client, ROUTE_NODES, status="303 See Other")
 
     def _route_send_command(self, client, request):
-        self.server_message_page = "messages"
+        self.server_message_page = "nodes"
         form = parse_form(request.body)
         peer_name = form.get("peer", "").strip()
         command = form.get("command", "").strip()
-        payload = form.get("payload", "").strip()
+        payload = (
+            form.get("feature_id", "").strip()
+            if command == "feature_read"
+            else form.get("payload", "").strip()
+        )
 
         if self.communication_plugin is None:
             self.server_message = "The communication plugin is unavailable."
@@ -758,10 +831,10 @@ class App:
                 log("Could not send communication command: %s" % exc)
                 self.server_message = "The command could not be sent."
 
-        send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
+        send_redirect(client, ROUTE_NODES, status="303 See Other")
 
     def _route_communication_refresh(self, client, request):
-        self.server_message_page = "messages"
+        self.server_message_page = "nodes"
         plugin = self.communication_plugin
         if plugin is None or not plugin.enabled:
             self.server_message = "Enable the communication plugin first."
@@ -772,16 +845,16 @@ class App:
         else:
             # A successful refresh is reflected by the device list itself.
             self.server_message = ""
-        send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
+        send_redirect(client, ROUTE_NODES, status="303 See Other")
 
     def _route_clear_conversation(self, client, request):
         if self.communication_plugin is not None:
             self.communication_plugin.clear_messages()
         self.server_message = ""
-        self.server_message_page = "messages"
-        send_redirect(client, ROUTE_MESSAGES, status="303 See Other")
+        self.server_message_page = "nodes"
+        send_redirect(client, ROUTE_NODES, status="303 See Other")
 
-    def _show_device_page(self, client, page):
+    def _show_device_page(self, client, page, feature_content=""):
         current_ip = self.wifi.station_ip()
 
         if current_ip:
@@ -797,7 +870,7 @@ class App:
             temperature, temperature_state = (
                 self.server_metrics.temperature_status()
             )
-        elif page == "messages":
+        elif page == "nodes":
             plugin = self.communication_plugin
 
         send_html(
@@ -842,6 +915,12 @@ class App:
                 clear_conversation_route=ROUTE_CLEAR_CONVERSATION,
                 send_command_route=ROUTE_SEND_COMMAND,
                 max_payload_length=COMMUNICATION_MAX_PAYLOAD_BYTES,
+                features=(
+                    self.feature_manager.features()
+                    if page == "features" and self.feature_manager is not None
+                    else ()
+                ),
+                feature_content=feature_content,
             ),
         )
 

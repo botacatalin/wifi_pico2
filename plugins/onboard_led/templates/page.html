@@ -1,0 +1,18 @@
+<header class="dashboard-header">
+<div>
+<p class="eyebrow">Device Feature</p>
+<h1>Onboard LED</h1>
+<p class="dashboard-subtitle">Switch the Pico 2 W's built-in LED directly from the dashboard.</p>
+</div>
+</header>
+{{? MESSAGE > feature_notice.html}}
+<section class="dashboard-section">
+<div class="control-status">
+<span><strong>LED status</strong><small>The physical onboard indicator is currently {{STATE}}.</small></span>
+<span class="state-pill {{STATE_CLASS}}">{{STATE}}</span>
+</div>
+<form action="/features/onboard-led/set" method="post">
+<input type="hidden" name="state" value="{{NEXT_STATE}}">
+<button type="submit">{{BUTTON_LABEL}}</button>
+</form>
+</section>
