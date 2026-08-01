@@ -1028,6 +1028,11 @@ class CommunicationPluginTests(unittest.TestCase):
         network.peers["peer-one"] = {
             "address": ("192.168.1.21", 4242),
             "last_seen": time.ticks_ms(),
+            "features": ({
+                "id": "onboard-led",
+                "name": "Onboard LED",
+                "field_labels": {"state": "Status"},
+            },),
         }
 
         self.assertEqual(
@@ -1036,7 +1041,7 @@ class CommunicationPluginTests(unittest.TestCase):
                 "plugin",
                 {
                     "feature_id": "onboard-led",
-                    "operation": "set",
+                    "operation": "  SeT  ",
                     "parameters": {"state": "on"},
                 },
             ),
@@ -1046,6 +1051,26 @@ class CommunicationPluginTests(unittest.TestCase):
         self.assertIn('"message_type": "plugin"', request)
         self.assertIn('"operation": "set"', request)
         self.assertIn('"parameters": {"state": "on"}', request)
+        self.assertEqual(
+            network.recent_messages()[0]["payload"],
+            "Update Onboard LED",
+        )
+        self.assertEqual(
+            network.recent_messages()[1]["payload"],
+            "Status: on",
+        )
+
+    def test_feature_result_uses_short_human_readable_labels(self):
+        feature = {
+            "field_labels": {"temperature_c": "Temperature (°C)"},
+        }
+
+        self.assertEqual(
+            PeerNetwork._feature_result_label(
+                {"temperature_c": 43.9}, feature
+            ),
+            "Temperature: 43.9 °C",
+        )
 
     def test_peer_rejects_malformed_plugin_request_before_sending(self):
         udp_socket = FakeDatagramSocket()
@@ -1345,7 +1370,7 @@ class CommunicationPluginTests(unittest.TestCase):
             {
                 "direction": "received",
                 "node": "peer-one",
-                "payload": "Ping ACK from peer-one.",
+                "payload": "Online",
             },
         ])
         request = udp_socket.sent[0][0].decode("utf-8")

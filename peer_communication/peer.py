@@ -4,6 +4,8 @@ import json
 import socket
 import time
 
+from shared_web.text import humanize_identifier
+
 
 def normalize_command(command):
     """Return the canonical lowercase form used on the UDP wire."""
@@ -182,13 +184,14 @@ class PeerNetwork:
         else:
             packet["payload"] = payload
 
+        feature = (
+            self._peer_feature(peer, payload["feature_id"])
+            if command == "plugin" else None
+        )
         if command == "message":
             display_payload = payload
         elif command == "plugin":
-            display_payload = "%s feature: %s" % (
-                payload["operation"].capitalize(),
-                payload["feature_id"],
-            )
+            display_payload = self._feature_request_label(payload, feature)
         else:
             display_payload = "Ping"
         self._remember_message("sent", peer_name, display_payload)
@@ -246,8 +249,8 @@ class PeerNetwork:
                             "received",
                             peer_name,
                             (
-                                json.dumps(reply_payload)
-                                if command == "plugin" else reply_payload
+                                self._feature_result_label(reply_payload, feature)
+                                if command == "plugin" else "Online"
                             ),
                         )
                     return ok, reply_payload
@@ -427,6 +430,42 @@ class PeerNetwork:
             "created_at_ms": time.ticks_ms(),
         })
         self.message_revision += 1
+
+    @staticmethod
+    def _peer_feature(peer, feature_id):
+        for feature in peer.get("features", ()):
+            if feature.get("id") == feature_id:
+                return feature
+        return None
+
+    @staticmethod
+    def _feature_request_label(payload, feature=None):
+        action = "Read" if payload["operation"] == "get" else "Update"
+        name = feature.get("name") if feature is not None else None
+        if not name:
+            name = humanize_identifier(payload["feature_id"])
+        return "%s %s" % (action, name)
+
+    @staticmethod
+    def _feature_result_label(result, feature=None):
+        values = []
+        labels = feature.get("field_labels", {}) if feature is not None else {}
+        for field, value in result.items():
+            label = labels.get(field) or humanize_identifier(field)
+            if field.endswith("_c") and isinstance(value, (int, float)):
+                if label.endswith(" (°C)"):
+                    label = label[:-5]
+                elif not labels.get(field):
+                    label = humanize_identifier(field[:-2])
+                value = "%s °C" % value
+            elif isinstance(value, bool):
+                value = "Yes" if value else "No"
+            elif value is None:
+                value = "Unavailable"
+            elif isinstance(value, (dict, list, tuple)):
+                value = json.dumps(value)
+            values.append("%s: %s" % (label, value))
+        return ", ".join(values) if values else "Done"
 
     def _send(self, address, packet):
         packet["group_name"] = self.group_name
