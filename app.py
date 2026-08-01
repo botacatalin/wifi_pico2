@@ -108,7 +108,11 @@ class App:
         self.pending_connection_at = None
         self.awaiting_setup_result = False
         self.server_metrics = ServerMetrics(
-            PROCESSOR_TEMPERATURE_CRITICAL_C
+            PROCESSOR_TEMPERATURE_CRITICAL_C,
+            temperature_reader=(
+                self._processor_temperature_c
+                if self.feature_manager is not None else None
+            ),
         )
 
         self.ap_shutdown_at = None
@@ -150,6 +154,17 @@ class App:
     # =====================================================
     # Background tasks
     # =====================================================
+
+    def _processor_temperature_c(self):
+        ok, values = self.feature_manager.read_values(
+            "processor-temperature"
+        )
+        if not ok:
+            return None
+        value = values.get("temperature_c")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value
+        return None
 
     def update(self):
         """
@@ -787,7 +802,7 @@ class App:
         self._show_device_page(client, "features", content)
 
     def _route_communication_toggle(self, client, request):
-        self.server_message_page = "nodes"
+        self.server_message_page = "network"
         plugin = self.communication_plugin
         if plugin is None:
             self.server_message = "The communication plugin is unavailable."
@@ -795,12 +810,10 @@ class App:
             form = parse_form(request.body)
             enabled = form.get("enabled") == "1"
             if plugin.set_enabled(enabled):
-                self.server_message = (
-                    "" if enabled else "Communication plugin disabled."
-                )
+                self.server_message = ""
             else:
                 self.server_message = "Could not change communication plugin state."
-        send_redirect(client, ROUTE_NODES, status="303 See Other")
+        send_redirect(client, ROUTE_NETWORK, status="303 See Other")
 
     def _route_send_command(self, client, request):
         self.server_message_page = "nodes"
@@ -870,7 +883,7 @@ class App:
             temperature, temperature_state = (
                 self.server_metrics.temperature_status()
             )
-        elif page == "nodes":
+        elif page in ("nodes", "network"):
             plugin = self.communication_plugin
 
         send_html(
@@ -901,13 +914,16 @@ class App:
                     plugin.group_name if plugin is not None else ""
                 ),
                 peers=(
-                    plugin.available_peers() if plugin is not None else []
+                    plugin.available_peers()
+                    if page == "nodes" and plugin is not None else []
                 ),
                 messages=(
-                    plugin.recent_messages() if plugin is not None else []
+                    plugin.recent_messages()
+                    if page == "nodes" and plugin is not None else []
                 ),
                 message_revision=(
-                    plugin.message_revision() if plugin is not None else 0
+                    plugin.message_revision()
+                    if page == "nodes" and plugin is not None else 0
                 ),
                 message_revision_route=ROUTE_MESSAGE_REVISION,
                 communication_toggle_route=ROUTE_COMMUNICATION_TOGGLE,

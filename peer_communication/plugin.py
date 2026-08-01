@@ -56,9 +56,9 @@ class CommunicationPlugin:
     """Optional discovery and command/reply service used by App."""
 
     COMMANDS = (
-        ("message", "Message"),
-        ("ping", "Ping"),
-        ("feature_read", "Read feature"),
+        "message",
+        "ping",
+        "feature_read",
     )
 
     def __init__(
@@ -88,18 +88,21 @@ class CommunicationPlugin:
         self.network_ready = False
 
     def recent_messages(self):
-        if self.network is None:
+        network = self._active_network()
+        if network is None:
             return []
-        return self.network.recent_messages()
+        return network.recent_messages()
 
     def message_revision(self):
-        if self.network is None:
+        network = self._active_network()
+        if network is None:
             return 0
-        return self.network.message_revision
+        return network.message_revision
 
     def clear_messages(self):
-        if self.network is not None:
-            self.network.clear_messages()
+        network = self._active_network()
+        if network is not None:
+            network.clear_messages()
 
     def set_enabled(self, enabled):
         enabled = bool(enabled)
@@ -151,25 +154,29 @@ class CommunicationPlugin:
         return True
 
     def update(self):
-        if self.enabled and self.network_ready and self.network is not None:
-            self.network.update()
+        network = self._active_network()
+        if network is not None:
+            network.update()
 
     def available_peers(self):
-        if not self.enabled or self.network is None:
+        network = self._active_network()
+        if network is None:
             return []
-        return self.network.available_peers()
+        return network.available_peers()
 
     def refresh_devices(self):
-        if not self.enabled or self.network is None:
+        network = self._active_network()
+        if network is None:
             return False
-        return self.network.discover()
+        return network.discover()
 
     def send_command(self, peer_name, command, payload=""):
-        if not self.enabled or self.network is None:
+        network = self._active_network()
+        if network is None:
             return False, "The communication plugin is disabled."
         if not peer_name:
             return False, "Please select an available board."
-        if not self._supports_command(command):
+        if command not in self.COMMANDS:
             return False, "Unsupported command."
         if command == "message" and not payload:
             return False, "Please enter a message."
@@ -177,13 +184,7 @@ class CommunicationPlugin:
             return False, "Please select a feature to read."
         if len(payload.encode("utf-8")) > self.max_payload_bytes:
             return False, "The command payload is too long."
-        return self.network.send_command(peer_name, command, payload)
-
-    def _supports_command(self, command):
-        for value, unused_label in self.COMMANDS:
-            if value == command:
-                return True
-        return False
+        return network.send_command(peer_name, command, payload)
 
     def close(self):
         """Release runtime resources without changing the persisted setting."""
@@ -212,6 +213,13 @@ class CommunicationPlugin:
         if len(reply.encode("utf-8")) > self.max_payload_bytes:
             return False, "The feature output is too long."
         return bool(ok), reply
+
+    def _active_network(self):
+        """Return the peer transport only while all network gates are open."""
+
+        if not self.enabled or not self.network_ready:
+            return None
+        return self.network
 
     def _stop(self):
         if self.network is None:

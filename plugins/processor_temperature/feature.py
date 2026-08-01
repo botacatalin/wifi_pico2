@@ -11,6 +11,7 @@ class ProcessorTemperatureFeature(DeviceFeature):
     feature_type = "sensor"
     requires_external_hardware = False
     exposed_fields = ("temperature_c",)
+    field_labels = {"temperature_c": "Temperature (°C)"}
 
     def __init__(self, sensor=None, critical_temperature_c=85):
         self.critical_temperature_c = critical_temperature_c

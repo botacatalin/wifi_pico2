@@ -21,7 +21,7 @@ test suite. The current version includes:
 - CYW43 power saving disabled by default for more reliable always-on HTTP and
   multi-board UDP communication.
 
-The host suite currently contains 67 tests covering helpers, rendering,
+The host suite currently contains 72 tests covering helpers, rendering,
 provisioning transitions, AP shutdown scheduling, feature and messaging lifecycles, peer
 discovery, retries, reply matching, deduplication, and Wi-Fi configuration.
 Physical Pico 2 W verification is still required for radio behavior, especially
@@ -88,17 +88,18 @@ The connected dashboard has five pages:
 
 - **Overview:** system status.
   Processor temperatures at or above 85°C are marked critical.
-- **Nodes:** communication-plugin controls, local board/group identity,
-  discovered boards with IP addresses, and command/reply messages.
-- **Network:** saved-network controls.
+- **Nodes:** discovered boards, manual discovery refresh, shared features,
+  Ping, and conversations.
+- **Network:** saved-network controls plus node discovery enablement, local
+  board/group identity.
 - **Device Features:** automatically discovered, drop-in board controls.
-- **About:** project summary, external README, `nodes.ro@proton.me` contact, and
+- **About:** concise project summary, README link, `nodes.ro@proton.me` contact, and
   GNU GPL v2 license information.
 
 The dashboard uses a neutral surface, restrained green status accents, compact
 device/network badges, and clear card hierarchy so it remains comfortable to
 scan over long sessions. On narrow screens the sidebar becomes a compact
-five-tab navigation bar; metrics and discovered-device cards collapse to a
+five-tab navigation bar; metrics and discovered-node cards collapse to a
 single column. Critical temperature and destructive network actions retain
 distinct warning colors. The interface uses no external fonts, scripts, or
 image assets, so it remains self-contained on the Pico filesystem.
@@ -115,8 +116,10 @@ At startup, `FeatureManager` scans each subfolder in `plugins/`. A valid feature
 is listed automatically on the **Device Features** page; no central import,
 route, or dashboard template needs to be edited. The bundled `onboard_led` feature uses
 MicroPython's `Pin("LED", Pin.OUT)` mapping and provides a button that toggles
-the Pico 2 W's built-in LED. The bundled `processor_temperature` feature reads
-the RP2350 internal temperature sensor independently of the Overview page.
+the Pico 2 W's built-in LED. The bundled `processor_temperature` feature owns
+the RP2350 internal temperature sensor and supplies the same validated reading
+to its feature page, remote nodes, and the Overview page. If this feature is
+removed, Overview reports processor temperature as **Unavailable**.
 
 There is no configured feature count limit. The practical limit is the Pico's
 available flash and RAM, so features should keep imports, state, and rendered
@@ -144,6 +147,10 @@ class ExampleFeature(DeviceFeature):
     requires_external_hardware = True
     # Public values advertised during discovery and returned by read().
     exposed_fields = ("temperature_c", "connected")
+    field_labels = {
+        "temperature_c": "Temperature (°C)",
+        "connected": "Connected",
+    }
 
     def render(self, message=""):
         return "<header>...</header>"
@@ -180,14 +187,15 @@ shares its current state through `read()`. A sensor reads its attached hardware
 and returns one or more named values. `exposed_fields` declares those names and
 `read()` returns a compact dictionary with exactly the same keys. Field names
 use lowercase letters, numbers, and underscores. Values may be strings,
-numbers, booleans, or `None`. The manager validates and normalizes this output
+numbers, booleans, or `None`. Optional `field_labels` provide readable names
+for the Nodes interface. The manager validates and normalizes this output
 centrally before it is shared, and the communication layer enforces the
 configured payload limit.
 
 Every compatible feature implements `read()`. Peer discovery automatically
-advertises its feature ID and exposed field names, so Nodes shows what
-each remote board provides and uses those IDs as query suggestions. Select a
-discovered board and feature, then choose **Read value**. The receiving board
+advertises its feature ID, name, exposed fields, and field labels, so Nodes
+shows what each remote board provides. Select a discovered board and click one
+of its shared features. The receiving board
 resolves the requested `feature_id` locally and returns its current value.
 Missing, failed, mismatched, and oversized outputs produce bounded error
 replies without exposing feature internals.
@@ -201,9 +209,12 @@ address.
 
 ### Enable messaging
 
-Messaging enablement is controlled from the Nodes page. Select **Enable** to
+Messaging enablement is controlled from the Network page. Select **Enable** to
 start discovery and command handling, or **Disable** to close the UDP socket and
-hide the board from its peers. The choice is saved in
+stop all discovery broadcasts, packet handling, peer commands, and Device
+Feature advertisement. Installed features continue to operate locally, but
+their catalog and values are not published to other nodes while discovery is
+disabled, which also hides the board from its peers. The choice is saved in
 `communication_plugin.json` and restored after restart. The plugin starts only
 after the board receives a LAN address.
 
@@ -225,15 +236,15 @@ Each enabled board calculates the subnet-directed broadcast address from its
 station IP and netmask, then broadcasts a small UDP discovery packet
 periodically. This avoids CYW43 routing failures that can occur with the global
 `255.255.255.255` address. A board that receives the packet replies directly,
-and both boards add one another to their available-device lists. Inactive
+and both boards add one another to their available-node lists. Inactive
 boards expire from the list after the configured timeout. A temporary broadcast
 failure is retried at the next normal interval instead of on every server-loop
 iteration.
 
 Discovery updates automatically. Discovered-device cards and the target
-selector show both node name and LAN IP address. **Refresh devices** broadcasts
-immediately and reloads the current server-rendered list without showing a
-success notice. For discovery to work, the boards must:
+selector show both node name and LAN IP address. **Refresh devices** on Nodes
+broadcasts immediately and reloads the refreshed server-rendered list without
+showing a success notice. For discovery to work, the boards must:
 
 - Be connected to the same local Wi-Fi network.
 - Use the same `COMMUNICATION_GROUP_NAME` and `COMMUNICATION_PORT`.
@@ -245,22 +256,23 @@ both boards are connected successfully.
 
 ### Send messages and receive replies
 
-The Discover section places Refresh devices below the Enabled status.
-Discovered boards appear as selectable cards showing node name and IP
-address. The separate Conversation section appears below the device list.
+On Nodes, Refresh devices appears above the two-column workspace. Discovered
+boards appear in the left column as selectable cards showing node name and IP
+address; Conversation occupies the right column.
 Select a board, type into the composer below the chat window, and press
 **Send**. The chat keeps the eight most recent sent and received messages in
-RAM and timestamps them using the viewing browser's local clock. Select
-**Clear conversation** to remove that local history without
-affecting discovered devices or the other board. History is also cleared when
+RAM and timestamps them using the viewing browser's local clock. Use the trash
+icon (**Clear conversation** tooltip) to remove that local history without
+affecting discovered nodes or the other board. History is also cleared when
 the plugin stops or the board restarts. While the Nodes page is open, it
 checks for conversation changes once per second and reloads automatically when
 a message arrives, so received messages do not require a manual refresh.
 
-Select **Ping** beside Send to test the selected board without entering a
-message. The receiver automatically returns `Ping ACK from <board-id>.` A
+Use the radio-wave icon (**Ping selected node** tooltip) beside Send to test
+the selected board without entering a message. The receiver automatically
+returns `Ping ACK from <board-id>.` A
 `message` receiver currently echoes the original payload in its reply; this is
-the feature point for future message-processing behavior. Successful message
+the hook for future message-processing behavior. Successful message
 echoes and Ping ACKs appear inside the chat window, replacing its “No messages
 yet” state. On the sender, the request uses the sent-message color and the
 reply uses the received-message color. The receiving board records the inverse:
@@ -269,10 +281,12 @@ reply. Locally sent bubbles are labeled **This Device**; received bubbles show
 the remote board ID. Retries reuse cached replies and do not duplicate chat
 entries. Only failures are shown as page notices.
 
-Features can also be queried from this page. The requester sends the
-selected feature ID, and the current remote result appears in the conversation,
-for example `Onboard LED: state=on` or
-`Processor Temperature: temperature_c=42.0`.
+Features can also be queried from this page. Clicking a shared feature sends
+its stable ID to that node, and the current result appears in Conversation,
+for example `Onboard LED — Status: On` or
+`Processor Temperature — Temperature (°C): 42.0`.
+Each node's Shared features section is collapsed independently by default and
+shows the number of features advertised by that node.
 
 Application packets use the same `message_type` for a request and its response:
 `message` for text delivery, `ping` for availability checks, and `feature_read`
@@ -286,7 +300,7 @@ Message request:
 {
   "message_type": "message",
   "kind": "request",
-  "request_id": "nodes-75833497-1",
+  "request_id": "nodes-75833497-12345-1",
   "node_name": "nodes-75833497",
   "group_name": "nodes-local",
   "payload": "Hello"
@@ -299,7 +313,7 @@ Successful response:
 {
   "message_type": "message",
   "kind": "reply",
-  "request_id": "nodes-75833497-1",
+  "request_id": "nodes-75833497-12345-1",
   "node_name": "nodes-91ab2041",
   "group_name": "nodes-local",
   "payload": "Hello"
@@ -318,7 +332,7 @@ prevents an unrelated response from completing the request.
 Commands retry with the same request ID during the bounded reply window. The
 receiver remembers a small number of recent IDs, so a retried command returns
 its previous reply without executing twice. Successful requests and replies are
-shown in the conversation, while failures appear as Messages-page notices.
+shown in the conversation, while failures appear as Nodes-page notices.
 Request IDs include a per-plugin-session value so disabling, re-enabling, or
 restarting a sender does not collide with an ID still cached by another board.
 Deduplication keys also include the message type.
@@ -389,16 +403,17 @@ Common captive-portal probe routes also display setup.
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/` | System overview |
-| `GET` | `/nodes` | Device discovery and command/reply messaging |
-| `GET` | `/network` | Saved-network information |
+| `GET` | `/nodes` | Discovered nodes, shared features, and conversations |
+| `GET` | `/network` | Saved Wi-Fi settings and device-discovery enablement |
 | `GET` | `/features` | List installed Device Features |
 | `GET` | `/features/<feature-id>` | Display one feature |
-| `POST` | `/features/<feature-id>/<action>` | Run an feature action |
+| `POST` | `/features/<feature-id>/<action>` | Run a feature action |
 | `GET` | `/about` | Project, contact, documentation, and license information |
-| `POST` | `/communication/toggle` | Enable or disable messaging |
+| `POST` | `/communication/toggle` | Enable or disable device discovery and peer commands |
 | `POST` | `/communication/refresh` | Broadcast device discovery now |
+| `GET` | `/communication/message-revision` | Return the conversation revision |
 | `POST` | `/communication/clear` | Clear this board's in-memory conversation history |
-| `POST` | `/communication/command` | Send a command to a discovered device |
+| `POST` | `/communication/command` | Send a command to a discovered node |
 | `POST` | `/forget-wifi` | Delete saved credentials |
 | `GET` | `/connect` | Provisioning success page |
 | `GET` | `/connection-result` | Completed connection result |
@@ -458,6 +473,7 @@ shared_web/
   http.py                  Bounded HTTP parsing, responses, and server socket
   forms.py                 URL and form decoding
   html.py                  HTML escaping
+  text.py                  MicroPython-safe UI label formatting
   template.py              Lightweight component template renderer
 network_setup/
   credentials.py           Credential persistence
@@ -467,7 +483,7 @@ network_setup/
   style.css                Provisioning-only responsive styles
   templates/               Setup-only templates
 device_dashboard/
-  metrics.py               Uptime and processor temperature
+  metrics.py               Uptime and Overview temperature presentation
   pages.py                 Dashboard and error rendering
   style.css                Responsive dashboard visual system and states
   templates/               Overview, Nodes, Device Features, Network, and components
@@ -541,7 +557,7 @@ is delivered.
 - Enable the communication plugin on every board.
 - Confirm that all boards show the same group name and use the same UDP port.
 - Confirm that every board is connected to the same local network.
-- Select **Refresh devices**, then reload Nodes if necessary.
+- Select **Refresh devices** from Nodes, then reload Nodes if necessary.
 - If refresh reports that discovery is unavailable, confirm the station still
   has a valid LAN IP and netmask.
 - Disable guest-network or wireless-client isolation on the router.

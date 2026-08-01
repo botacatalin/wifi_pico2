@@ -460,21 +460,34 @@ button:active {
     border-radius: 12px;
 }
 
+.nodes-workspace {
+    display: grid;
+    grid-template-columns: minmax(220px, .8fr) minmax(300px, 1.2fr);
+    align-items: start;
+    gap: 18px;
+}
+
+.nodes-workspace .dashboard-section {
+    margin-top: 28px;
+}
+
 .peer-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
 
 .peer-card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     margin: 0;
     padding: 12px 13px;
     background: #fff;
     border: 1px solid var(--panel-border);
     border-radius: 11px;
+}
+
+.peer-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     cursor: pointer;
 }
 
@@ -513,17 +526,82 @@ button:active {
     border-top: 1px solid var(--panel-border);
 }
 
-.peer-features b,
-.peer-features span {
+.peer-features summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 2px;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    list-style: none;
+}
+
+.peer-features summary::-webkit-details-marker {
+    display: none;
+}
+
+.peer-features summary::before {
+    content: "+";
+    color: var(--accent-color);
+    font-size: 15px;
+    line-height: 1;
+}
+
+.peer-features[open] summary::before {
+    content: "−";
+}
+
+.peer-features summary span {
+    min-width: 20px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--panel-background);
+    color: var(--muted-color);
+    font-size: 10px;
+    text-align: center;
+}
+
+.peer-feature-list {
+    display: grid;
+    gap: 6px;
+    padding-top: 6px;
+    color: var(--muted-color);
+    font-size: 11px;
+}
+
+.peer-feature-action,
+.peer-feature-action button {
+    margin: 0;
+}
+
+.peer-feature-action button {
+    width: 100%;
+    padding: 8px 9px;
+    background: var(--panel-background);
+    border: 1px solid var(--panel-border);
+    color: var(--ink);
+    text-align: left;
+}
+
+.peer-feature-action button:hover {
+    border-color: var(--accent-color);
+    background: var(--accent-soft);
+}
+
+.peer-feature-action button strong,
+.peer-feature-action button small {
     display: block;
 }
 
-.peer-features b {
-    margin-bottom: 2px;
-    color: var(--ink);
-    font-size: 10px;
-    letter-spacing: .05em;
-    text-transform: uppercase;
+.peer-feature-action button small {
+    margin-top: 2px;
+    color: var(--muted-color);
+    font-size: 11px;
+    font-weight: 500;
 }
 
 .chat-window {
@@ -534,9 +612,21 @@ button:active {
     max-height: 360px;
     padding: 15px;
     overflow-y: auto;
-    background: var(--panel-background);
+    background: linear-gradient(180deg, #f8fbf8, var(--panel-background));
     border: 1px solid var(--panel-border);
     border-radius: 13px;
+}
+
+.conversation-section {
+    padding: 18px;
+    background: rgba(255, 255, 255, .82);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(30, 48, 36, .05);
+}
+
+.conversation-section .section-heading {
+    margin-bottom: 12px;
 }
 
 .chat-message {
@@ -593,7 +683,7 @@ button:active {
 
 .chat-composer {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-columns: minmax(0, 1fr) auto 42px 42px;
     gap: 8px;
     margin-top: 10px;
 }
@@ -614,6 +704,30 @@ button:active {
 
 .chat-composer .ping-button {
     background: #3e6f9e;
+}
+
+.chat-composer .clear-button {
+    background: #eef1ef;
+    border: 1px solid var(--panel-border);
+    color: #68756c;
+}
+
+.chat-composer .icon-button {
+    display: inline-grid;
+    place-items: center;
+    width: 42px;
+    min-width: 42px;
+    padding: 0;
+}
+
+.icon-button svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .danger-button span,
@@ -731,40 +845,6 @@ button:active {
     margin-top: 14px;
 }
 
-.remote-feature-query {
-    margin-bottom: 24px;
-    padding: 16px;
-    background: var(--panel-background);
-    border: 1px solid var(--panel-border);
-    border-radius: 12px;
-}
-
-.remote-feature-query label strong,
-.remote-feature-query label small {
-    display: block;
-}
-
-.remote-feature-query label small {
-    color: var(--muted-color);
-}
-
-.remote-feature-query > div {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.remote-feature-query input,
-.remote-feature-query button {
-    margin: 0;
-}
-
-.remote-feature-query button {
-    width: auto;
-    white-space: nowrap;
-}
-
 .license-heading {
     padding-top: 20px;
     border-top: 1px solid var(--panel-border);
@@ -812,6 +892,11 @@ button:active {
         grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 4px;
         padding: 0 6px 7px;
+    }
+
+    .nodes-workspace {
+        grid-template-columns: 1fr;
+        gap: 0;
     }
 
     .nav-group {
@@ -870,14 +955,6 @@ button:active {
         padding-right: 7px;
         padding-left: 7px;
         font-size: 13px;
-    }
-
-    .remote-feature-query > div {
-        grid-template-columns: 1fr;
-    }
-
-    .remote-feature-query button {
-        width: 100%;
     }
 
     .dashboard-header h1 {

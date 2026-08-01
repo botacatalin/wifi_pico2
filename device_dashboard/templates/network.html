@@ -2,8 +2,13 @@
 <div>
 <p class="eyebrow">Dashboard</p>
 <h1>Network</h1>
-<p class="dashboard-subtitle">Connection details and saved Wi-Fi settings.</p>
+<p class="dashboard-subtitle">Wi-Fi settings and communication with other nodes.</p>
 </div>
 </header>
 {{? MESSAGE > notice.html}}
 {{? HAS_NETWORK > network_settings.html}}
+<section class="dashboard-section">
+<div class="section-heading"><span>Node discovery</span></div>
+{{? COMMUNICATION_ENABLED > communication_enabled.html}}
+{{? COMMUNICATION_DISABLED > communication_disabled.html}}
+</section>

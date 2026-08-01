@@ -51,7 +51,7 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
   restrained green status accents, responsive cards, and compact five-tab
   navigation on narrow screens. It is self-contained and loads no external
   visual assets.
-- The dependency-free host suite currently contains 67 tests. It covers HTTP
+- The dependency-free host suite currently contains 72 tests. It covers HTTP
   helpers, rendering, provisioning transitions, AP shutdown scheduling,
   feature discovery and remote reads, messaging lifecycle and transport
   behavior, and Wi-Fi configuration.

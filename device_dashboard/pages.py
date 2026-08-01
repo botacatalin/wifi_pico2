@@ -4,6 +4,7 @@ import time
 
 from shared_web.html import html_escape
 from shared_web.template import render_template
+from shared_web.text import humanize_identifier
 
 
 _FEATURE_TYPE_LABELS = {
@@ -11,6 +12,25 @@ _FEATURE_TYPE_LABELS = {
     "actuator": "Actuator",
     "integration": "Integration",
 }
+
+
+def _humanize_field(field):
+    if field == "state":
+        return "Status"
+    if field.endswith("_c"):
+        return "%s (°C)" % humanize_identifier(field[:-2])
+    if field.endswith("_percent"):
+        return "%s (%%)" % humanize_identifier(field[:-8])
+    return humanize_identifier(field)
+
+
+def _humanize_feature(feature_id):
+    words = []
+    for word in feature_id.replace("_", "-").split("-"):
+        words.append(
+            "LED" if word.lower() == "led" else humanize_identifier(word)
+        )
+    return " ".join(words)
 
 
 def device_page(
@@ -49,8 +69,6 @@ def device_page(
     peer_cards = []
     chat_messages = []
     feature_cards = []
-    query_feature_options = []
-    query_feature_ids = []
     rendered_at_ms = time.ticks_ms()
     for index, peer in enumerate(peers or []):
         name = html_escape(peer.get("name", ""))
@@ -58,33 +76,49 @@ def device_page(
         exposed = []
         for feature in peer.get("features", ()):
             feature_id = html_escape(feature.get("id", ""))
+            feature_name = html_escape(
+                feature.get("name", "")
+                or _humanize_feature(feature.get("id", ""))
+            )
+            field_labels = feature.get("field_labels", {})
             fields = []
             for field in feature.get("fields", ()):
-                fields.append(html_escape(field))
+                label = field_labels.get(field) if isinstance(field_labels, dict) else None
+                fields.append(html_escape(label or _humanize_field(field)))
             if feature_id and fields:
                 exposed.append(
-                    '<span><code>%s</code>: %s</span>'
-                    % (feature_id, ", ".join(fields))
-                )
-                if feature_id not in query_feature_ids:
-                    query_feature_ids.append(feature_id)
-                    query_feature_options.append(
-                        '<option value="%s">%s</option>'
-                        % (feature_id, ", ".join(fields))
+                    '<form class="peer-feature-action" method="post" action="%s">'
+                    '<input type="hidden" name="peer" value="%s">'
+                    '<input type="hidden" name="command" value="feature_read">'
+                    '<input type="hidden" name="feature_id" value="%s">'
+                    '<button type="submit"><strong>%s</strong><small>%s</small></button>'
+                    '</form>'
+                    % (
+                        html_escape(send_command_route),
+                        name,
+                        feature_id,
+                        feature_name,
+                        ", ".join(fields),
                     )
+                )
+        feature_count = len(exposed)
         if peer.get("features_truncated"):
             exposed.append("<span>More features available</span>")
         exposed_html = (
-            '<small class="peer-features"><b>Shared features</b>%s</small>'
-            % "".join(exposed)
+            '<details class="peer-features"><summary>Shared features'
+            '<span>%d</span></summary><div class="peer-feature-list">%s</div>'
+            '</details>'
+            % (feature_count, "".join(exposed))
             if exposed
-            else '<small class="peer-features is-empty">'
-            'No shared feature information advertised</small>'
+            else '<details class="peer-features is-empty"><summary>'
+            'Shared features<span>0</span></summary><div class="peer-feature-list">'
+            'No shared feature information advertised</div></details>'
         )
         peer_cards.append(
-            '<label class="peer-card"><input type="radio" name="peer" '
+            '<article class="peer-card"><label class="peer-selector">'
+            '<input form="node-command-form" type="radio" name="peer" '
             'value="%s"%s><span><strong>%s</strong>'
-            '<small>IP address <code>%s</code></small>%s</span></label>'
+            '<small>IP address <code>%s</code></small></span></label>%s</article>'
             % (
                 name,
                 " checked" if index == 0 else "",
@@ -193,8 +227,6 @@ def device_page(
             "SHOW_FEATURE_INDEX": (
                 is_features_page and not bool(feature_content)
             ),
-            "SHOW_REMOTE_FEATURE_QUERY": bool(peer_cards),
-            "QUERY_FEATURE_OPTIONS": "".join(query_feature_options),
         },
     )
 

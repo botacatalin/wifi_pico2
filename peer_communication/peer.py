@@ -324,10 +324,9 @@ class PeerNetwork:
             self._remember_message("received", node, payload)
             self._remember_message("sent", node, payload)
             return True, payload
-        request_handler = getattr(self, "request_handler", None)
-        if request_handler is not None:
+        if self.request_handler is not None:
             try:
-                return request_handler(message_type, payload)
+                return self.request_handler(message_type, payload)
             except Exception:
                 return False, "The command could not be completed."
         return False, "Unsupported command."
@@ -383,17 +382,32 @@ class PeerNetwork:
             if not isinstance(feature, dict):
                 continue
             feature_id = feature.get("id")
+            feature_name = feature.get("name")
             fields = feature.get("fields")
             if not isinstance(feature_id, str) or not feature_id:
                 continue
             if not isinstance(fields, (list, tuple)) or not fields:
                 continue
+            if not isinstance(feature_name, str) or not feature_name:
+                feature_name = feature_id
+            labels = feature.get("field_labels", {})
+            if not isinstance(labels, dict):
+                labels = {}
             valid_fields = []
+            valid_labels = {}
             for field in fields:
                 if isinstance(field, str) and field:
                     valid_fields.append(field)
+                    label = labels.get(field)
+                    if isinstance(label, str) and label:
+                        valid_labels[field] = label
             if valid_fields:
-                records.append({"id": feature_id, "fields": valid_fields})
+                records.append({
+                    "id": feature_id,
+                    "name": feature_name,
+                    "fields": valid_fields,
+                    "field_labels": valid_labels,
+                })
         return records
 
     def _expire_peers(self, now):

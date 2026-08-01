@@ -1,27 +1,14 @@
 """Small runtime metrics collector for the device dashboard."""
 
-import machine
 import time
 
 class ServerMetrics:
 
-    def __init__(self, critical_temperature_c=85):
+    def __init__(self, critical_temperature_c=85, temperature_reader=None):
         self.critical_temperature_c = critical_temperature_c
+        self.temperature_reader = temperature_reader
         self.last_tick = time.ticks_ms()
         self.uptime_ms = 0
-
-        try:
-            self.temperature_sensor = machine.ADC(
-                machine.ADC.CORE_TEMP
-            )
-        except AttributeError:
-            # The RP2350 QFN-60 internal temperature sensor is ADC channel 4.
-            try:
-                self.temperature_sensor = machine.ADC(4)
-            except Exception:
-                self.temperature_sensor = None
-        except Exception:
-            self.temperature_sensor = None
 
     def update(self):
         """Accumulate uptime frequently so the tick counter can safely wrap."""
@@ -59,15 +46,14 @@ class ServerMetrics:
         return "%d min" % minutes
 
     def temperature_status(self):
-        if self.temperature_sensor is None:
-            return "Unavailable", ""
-
         try:
-            reading = self.temperature_sensor.read_u16()
-            voltage = reading * 3.3 / 65535
-            temperature = 27 - (
-                voltage - 0.706
-            ) / 0.001721
+            temperature = (
+                self.temperature_reader()
+                if self.temperature_reader is not None else None
+            )
+
+            if temperature is None:
+                return "Unavailable", ""
 
             state = (
                 "is-critical"

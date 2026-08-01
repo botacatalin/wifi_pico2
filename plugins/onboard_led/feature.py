@@ -12,6 +12,7 @@ class OnboardLedFeature(DeviceFeature):
     feature_type = "actuator"
     requires_external_hardware = False
     exposed_fields = ("state",)
+    field_labels = {"state": "Status"}
 
     def __init__(self, pin=None):
         if pin is None:

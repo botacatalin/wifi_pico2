@@ -2,42 +2,11 @@
 <div>
 <p class="eyebrow">Dashboard</p>
 <h1>Nodes</h1>
-<p class="dashboard-subtitle">Discover other boards, read their shared features, and exchange messages.</p>
+<p class="dashboard-subtitle">Read shared features and exchange messages with discovered nodes.</p>
 </div>
 </header>
 {{? MESSAGE > notice.html}}
-<section class="dashboard-section">
-<div class="section-heading"><span>Discover</span></div>
-{{? COMMUNICATION_ENABLED > communication_enabled.html}}
-{{? COMMUNICATION_DISABLED > communication_disabled.html}}
-</section>
+{{? COMMUNICATION_ENABLED > node_refresh.html}}
 {{? COMMUNICATION_ENABLED > messaging_devices.html}}
-<script>
-(function () {
-    var revision = {{MESSAGE_REVISION}};
-    var pageLoadedAt = Date.now();
-    var timestamps = document.querySelectorAll("time[data-message-age-ms]");
-    for (var index = 0; index < timestamps.length; index += 1) {
-        var timestamp = timestamps[index];
-        var age = parseInt(timestamp.getAttribute("data-message-age-ms"), 10);
-        var messageDate = new Date(pageLoadedAt - age);
-        timestamp.dateTime = messageDate.toISOString();
-        timestamp.textContent = messageDate.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit"
-        });
-    }
-    function checkMessages() {
-        fetch("{{MESSAGE_REVISION_ROUTE}}", {cache: "no-store"})
-            .then(function (response) { return response.text(); })
-            .then(function (value) {
-                if (parseInt(value, 10) !== revision) {
-                    window.location.reload();
-                }
-            })
-            .catch(function () {});
-    }
-    window.setInterval(checkMessages, 1000);
-}());
-</script>
+{{? COMMUNICATION_ENABLED > nodes_polling.html}}
+{{? COMMUNICATION_DISABLED > nodes_disabled.html}}

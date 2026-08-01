@@ -1,8 +1,8 @@
-<form class="chat-form" method="post" action="{{SEND_COMMAND_ROUTE}}">
-<section class="dashboard-section messaging-workspace">
-<div class="section-heading"><span>Devices found</span></div>
+<div class="nodes-workspace">
+<section class="dashboard-section nodes-panel">
+<div class="section-heading"><span>Nodes</span></div>
 {{? HAS_PEERS > peer_list.html}}
 {{? NO_PEERS > peer_empty.html}}
 </section>
 {{? HAS_PEERS > peer_message_form.html}}
-</form>
+</div>

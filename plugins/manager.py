@@ -3,6 +3,7 @@
 import os
 
 from plugins.interface import DeviceFeature, FEATURE_API_VERSION
+from shared_web.text import capitalize_first, humanize_identifier
 
 
 class FeatureManager:
@@ -62,6 +63,10 @@ class FeatureManager:
             raise ValueError("Feature hardware requirement must be boolean.")
         if not self._valid_exposed_fields(feature.exposed_fields):
             raise ValueError("Feature exposed_fields must be a non-empty tuple.")
+        if not self._valid_field_labels(
+            feature.field_labels, feature.exposed_fields
+        ):
+            raise ValueError("Feature field_labels must describe exposed fields.")
         if getattr(feature.__class__, "render", None) is DeviceFeature.render:
             raise ValueError("Feature must implement render().")
         if getattr(feature.__class__, "read", None) is DeviceFeature.read:
@@ -80,6 +85,19 @@ class FeatureManager:
             ):
                 return False
             seen.append(field)
+        return True
+
+    @staticmethod
+    def _valid_field_labels(labels, exposed_fields):
+        if not isinstance(labels, dict):
+            return False
+        for field, label in labels.items():
+            if (
+                field not in exposed_fields
+                or not isinstance(label, str)
+                or not label
+            ):
+                return False
         return True
 
     @staticmethod
@@ -123,7 +141,9 @@ class FeatureManager:
         for feature in self._features:
             manifest.append({
                 "id": feature.feature_id,
+                "name": feature.name,
                 "fields": feature.exposed_fields,
+                "field_labels": feature.field_labels,
             })
         return manifest
 
@@ -132,35 +152,59 @@ class FeatureManager:
         feature = self.get(feature_id)
         if feature is None:
             return False, "That feature is not installed on this board."
+        ok, reading = self.read_values(feature_id)
+        if not ok:
+            return False, "The feature output could not be read."
+        value = self._format_reading(
+            reading, feature.exposed_fields, feature.field_labels
+        )
+        return True, "%s — %s" % (feature.name, value)
+
+    def read_values(self, feature_id):
+        """Return one feature's validated structured values."""
+        feature = self.get(feature_id)
+        if feature is None:
+            return False, None
         try:
-            value = self._format_reading(
+            reading = self._validate_reading(
                 feature.read(), feature.exposed_fields
             )
         except Exception as exc:
             self.logger("Feature %s read failed: %s" % (feature_id, exc))
-            return False, "The feature output could not be read."
-        return True, "%s: %s" % (feature.name, value)
+            return False, None
+        return True, reading
 
     @staticmethod
-    def _format_reading(reading, exposed_fields):
-        """Normalize feature state and sensor values for bounded peer replies."""
+    def _validate_reading(reading, exposed_fields):
+        """Validate structured feature state before local or peer use."""
         if not isinstance(reading, dict):
             raise ValueError("Feature read() must return a dictionary.")
         if len(reading) != len(exposed_fields):
             raise ValueError("Feature reading fields do not match metadata.")
 
-        values = []
         for key in exposed_fields:
             if key not in reading:
                 raise ValueError("Feature reading fields do not match metadata.")
             value = reading[key]
             if not isinstance(value, (str, int, float, bool)) and value is not None:
                 raise ValueError("Feature reading values must be scalar.")
+        return reading
+
+    @staticmethod
+    def _format_reading(reading, exposed_fields, field_labels=None):
+        """Format validated feature values for bounded peer replies."""
+        values = []
+        field_labels = field_labels or {}
+        for key in exposed_fields:
+            value = reading[key]
             if isinstance(value, bool):
-                value = "true" if value else "false"
+                value = "Yes" if value else "No"
             elif value is None:
-                value = "unavailable"
-            values.append("%s=%s" % (key, value))
+                value = "Unavailable"
+            elif key == "state" and isinstance(value, str):
+                value = capitalize_first(value)
+            label = field_labels.get(key) or humanize_identifier(key)
+            values.append("%s: %s" % (label, value))
         return ", ".join(values)
 
     def update(self):

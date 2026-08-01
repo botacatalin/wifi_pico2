@@ -262,7 +262,7 @@ class ConnectionFlowTests(unittest.TestCase):
             [("nodes-c3d4", "message", "hello there")],
         )
         self.assertIn(b"303 See Other", client.output)
-        self.assertIn(b"Location: /", client.output)
+        self.assertIn(b"Location: /nodes", client.output)
         self.assertEqual(app.server_message, "")
 
         messages = FakeSocket([
@@ -274,7 +274,7 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertIn('<div class="chat-message is-sent">', response)
         self.assertIn('<div class="chat-message is-received">', response)
 
-    def test_dashboard_can_disable_communication_plugin(self):
+    def test_dashboard_disables_communication_without_success_notice(self):
         plugin = FakeCommunicationPlugin()
         app = App(
             FakeWiFi(),
@@ -291,24 +291,16 @@ class ConnectionFlowTests(unittest.TestCase):
         app.handle_client(client, ("192.168.1.50", 1234))
 
         self.assertFalse(plugin.enabled)
-        self.assertIn(b"Location: /", client.output)
-        self.assertIn("Communication plugin disabled", app.server_message)
+        self.assertIn(b"Location: /network", client.output)
+        self.assertEqual(app.server_message, "")
 
-        overview = FakeSocket([
-            b"GET / HTTP/1.1\r\nHost: device\r\n\r\n",
+        network = FakeSocket([
+            b"GET /network HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
-        app.handle_client(overview, ("192.168.1.50", 1234))
-        self.assertNotIn(
-            "Communication plugin disabled", overview.output.decode("utf-8")
-        )
-
-        messages = FakeSocket([
-            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
-        ])
-        app.handle_client(messages, ("192.168.1.50", 1234))
-        self.assertIn(
-            "Communication plugin disabled", messages.output.decode("utf-8")
-        )
+        app.handle_client(network, ("192.168.1.50", 1234))
+        page = network.output.decode("utf-8")
+        self.assertNotIn('<div class="notice"', page)
+        self.assertIn("<strong>Disabled</strong>", page)
 
     def test_dashboard_does_not_show_enabled_status_notice(self):
         plugin = FakeCommunicationPlugin()
@@ -330,14 +322,14 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertTrue(plugin.enabled)
         self.assertEqual(app.server_message, "")
 
-        messages = FakeSocket([
-            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
+        network = FakeSocket([
+            b"GET /network HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
-        app.handle_client(messages, ("192.168.1.50", 1234))
-        page = messages.output.decode("utf-8")
-        self.assertNotIn("Communication plugin enabled", page)
+        app.handle_client(network, ("192.168.1.50", 1234))
+        page = network.output.decode("utf-8")
+        self.assertNotIn('<div class="notice"', page)
         self.assertIn("<strong>Enabled</strong>", page)
-        self.assertIn("Device discovery", page)
+        self.assertIn("Node discovery", page)
 
     def test_dashboard_refreshes_peer_discovery(self):
         plugin = FakeCommunicationPlugin()
@@ -355,14 +347,15 @@ class ConnectionFlowTests(unittest.TestCase):
 
         self.assertEqual(plugin.refreshes, 1)
         self.assertIn(b"303 See Other", client.output)
+        self.assertIn(b"Location: /nodes", client.output)
         self.assertEqual(app.server_message, "")
 
-        messages = FakeSocket([
+        nodes = FakeSocket([
             b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
-        app.handle_client(messages, ("192.168.1.50", 1234))
+        app.handle_client(nodes, ("192.168.1.50", 1234))
         self.assertNotIn(
-            "Device discovery refreshed", messages.output.decode("utf-8")
+            "Device discovery refreshed", nodes.output.decode("utf-8")
         )
 
     def test_dashboard_clears_only_local_conversation_history(self):
@@ -384,7 +377,7 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertIn(b"303 See Other", client.output)
         self.assertEqual(app.server_message, "")
 
-    def test_overview_is_device_home_and_messages_has_communication(self):
+    def test_overview_is_home_and_network_has_communication_settings(self):
         plugin = FakeCommunicationPlugin()
         app = App(
             FakeWiFi(),
@@ -404,14 +397,14 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertIn("System status", response)
         self.assertNotIn("<dt>Group name</dt>", response)
 
-        messages_client = FakeSocket([
-            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
+        network_client = FakeSocket([
+            b"GET /network HTTP/1.1\r\nHost: device\r\n\r\n",
         ])
-        app.handle_client(messages_client, ("192.168.1.50", 1234))
-        messages = messages_client.output.decode("utf-8")
-        self.assertIn("<h1>Nodes</h1>", messages)
-        self.assertIn("<dt>Board ID</dt><dd>nodes-a1b2</dd>", messages)
-        self.assertIn("<dt>Group name</dt><dd>workshop</dd>", messages)
+        app.handle_client(network_client, ("192.168.1.50", 1234))
+        network = network_client.output.decode("utf-8")
+        self.assertIn("<h1>Network</h1>", network)
+        self.assertIn("<dt>Board ID</dt><dd>nodes-a1b2</dd>", network)
+        self.assertIn("<dt>Group name</dt><dd>workshop</dd>", network)
 
     def test_about_route_shows_project_information(self):
         app = App(FakeWiFi(), FakeCredentialStore(), provisioned=True)

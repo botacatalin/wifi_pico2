@@ -20,6 +20,7 @@ from network_setup.pages import (
     provisioning_page,
     provisioning_success_page,
 )
+from device_dashboard.metrics import ServerMetrics
 from device_dashboard.pages import device_page
 from peer_communication import (
     CommunicationPlugin,
@@ -32,6 +33,7 @@ from plugins.onboard_led.feature import OnboardLedFeature
 from plugins.processor_temperature.feature import ProcessorTemperatureFeature
 from shared_web import parse_form, read_request, render_template, send_html, send_response
 from shared_web import template as template_module
+from shared_web.text import capitalize_first, humanize_identifier
 
 
 class FakeSocket:
@@ -49,6 +51,13 @@ class FakeSocket:
         size = min(len(data), self.write_size or len(data))
         self.output.extend(data[:size])
         return size
+
+
+class TextTests(unittest.TestCase):
+    def test_micro_python_safe_identifier_labels(self):
+        self.assertEqual(humanize_identifier("temperature_c"), "Temperature C")
+        self.assertEqual(humanize_identifier("onboard-led"), "Onboard Led")
+        self.assertEqual(capitalize_first("off"), "Off")
 
 
 class HttpTests(unittest.TestCase):
@@ -221,8 +230,8 @@ class DevicePageTests(unittest.TestCase):
         )
 
         self.assertIn("<h1>Nodes</h1>", page)
-        self.assertIn("<dt>Board ID</dt><dd>nodes-a1b2</dd>", page)
-        self.assertIn("<dt>Group name</dt><dd>workshop</dd>", page)
+        self.assertNotIn("<dt>Board ID</dt>", page)
+        self.assertNotIn("<dt>Group name</dt>", page)
         self.assertIn("peer&lt;one&gt;", page)
         self.assertNotIn("peer<one>", page)
         self.assertIn("IP address <code>192.168.1.21</code>", page)
@@ -239,19 +248,14 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn('<time data-message-age-ms="', page)
         self.assertIn("messageDate.toLocaleTimeString", page)
         self.assertIn('action="/communication/command"', page)
-        self.assertIn('action="/communication/refresh"', page)
         self.assertIn('formaction="/communication/clear"', page)
         self.assertIn("Clear conversation", page)
-        self.assertIn("Refresh devices", page)
         self.assertIn('fetch("/communication/message-revision"', page)
         self.assertIn("var revision = 0;", page)
         self.assertIn("window.location.reload()", page)
-        self.assertIn("Discover", page)
-        self.assertIn('action="/communication/toggle"', page)
-        self.assertIn("Disable", page)
-        self.assertLess(page.index("Enabled"), page.index("Refresh devices"))
-        self.assertLess(page.index("Refresh devices"), page.index("Devices found"))
-        self.assertLess(page.index("<dt>Board ID</dt>"), page.index("Devices found"))
+        self.assertIn('action="/communication/refresh"', page)
+        self.assertIn("Refresh devices", page)
+        self.assertNotIn('action="/communication/toggle"', page)
 
     def test_messaging_offers_features_for_remote_query(self):
         page = device_page(
@@ -268,10 +272,14 @@ class DevicePageTests(unittest.TestCase):
             }],
         )
 
-        self.assertIn("Read node feature", page)
-        self.assertIn('name="feature_id"', page)
-        self.assertIn('value="onboard-led"', page)
+        self.assertNotIn("Read node feature", page)
+        self.assertIn('class="peer-feature-action"', page)
+        self.assertIn('name="feature_id" value="onboard-led"', page)
         self.assertIn('name="command" value="feature_read"', page)
+        self.assertIn("Onboard LED", page)
+        self.assertIn("Status", page)
+        self.assertIn('<details class="peer-features">', page)
+        self.assertIn("<summary>Shared features<span>1</span></summary>", page)
 
     def test_nodes_page_shows_remote_feature_manifest(self):
         page = device_page(
@@ -290,9 +298,10 @@ class DevicePageTests(unittest.TestCase):
 
         self.assertIn("Shared features", page)
         self.assertIn("weather-sensor", page)
-        self.assertIn("temperature_c, humidity_percent", page)
+        self.assertIn("Temperature (°C), Humidity (%)", page)
+        self.assertIn('class="nodes-workspace"', page)
 
-    def test_messaging_owns_settings_and_device_operations(self):
+    def test_nodes_owns_peer_operations_and_conversation(self):
         page = device_page(
             "192.168.1.20",
             page="nodes",
@@ -303,15 +312,19 @@ class DevicePageTests(unittest.TestCase):
         )
 
         self.assertIn("<h1>Nodes</h1>", page)
-        self.assertIn("<dt>Group name</dt><dd>workshop</dd>", page)
+        self.assertNotIn("<dt>Group name</dt>", page)
         self.assertIn('nav-link is-active" href="/nodes"', page)
-        self.assertIn("Devices found", page)
+        nodes_heading = '<div class="section-heading"><span>Nodes</span></div>'
+        self.assertIn(nodes_heading, page)
         self.assertIn("Conversation", page)
-        self.assertLess(page.index("Devices found"), page.index("Conversation"))
+        self.assertLess(page.index(nodes_heading), page.index("Conversation"))
         self.assertIn('name="peer"', page)
         self.assertIn('placeholder="Write a message"', page)
         self.assertIn(">Send</button>", page)
-        self.assertIn('name="command" value="ping">Ping</button>', page)
+        self.assertIn('name="command" value="ping"', page)
+        self.assertIn('aria-label="Ping selected node"', page)
+        self.assertIn('aria-label="Clear conversation"', page)
+        self.assertIn('<svg viewBox="0 0 24 24"', page)
         self.assertLess(
             page.index('name="command" value="message"'),
             page.index('name="command" value="ping"'),
@@ -320,7 +333,7 @@ class DevicePageTests(unittest.TestCase):
             page.index('name="command" value="ping"'),
             page.index("Clear conversation"),
         )
-        self.assertIn('class="ping-button"', page)
+        self.assertIn('class="icon-button ping-button"', page)
         sent_page = device_page(
             "192.168.1.20",
             page="nodes",
@@ -348,12 +361,33 @@ class DevicePageTests(unittest.TestCase):
         page = device_page(
             "192.168.1.20", page="nodes", communication_enabled=False
         )
-        self.assertNotIn("Devices found", page)
+        self.assertNotIn(
+            '<div class="section-heading"><span>Nodes</span></div>', page
+        )
         self.assertNotIn("Searching for other boards", page)
         self.assertNotIn("<dt>Board ID</dt>", page)
         self.assertNotIn("<dt>Group name</dt>", page)
-        self.assertIn("Discover", page)
-        self.assertIn("Enable", page)
+        self.assertIn(
+            "Enable device discovery from the Network menu", page
+        )
+        self.assertNotIn('action="/communication/toggle"', page)
+        self.assertNotIn('fetch("/communication/message-revision"', page)
+
+    def test_network_owns_node_discovery_controls(self):
+        page = device_page(
+            "192.168.1.20",
+            page="network",
+            node_name="nodes-a1b2",
+            communication_group_name="workshop",
+            communication_enabled=True,
+        )
+
+        self.assertIn("Node discovery", page)
+        self.assertIn("<dt>Board ID</dt><dd>nodes-a1b2</dd>", page)
+        self.assertIn("<dt>Group name</dt><dd>workshop</dd>", page)
+        self.assertIn('action="/communication/toggle"', page)
+        self.assertNotIn('action="/communication/refresh"', page)
+        self.assertNotIn("Refresh devices", page)
 
     def test_system_status_belongs_to_overview_only(self):
         overview = device_page(
@@ -380,7 +414,10 @@ class DevicePageTests(unittest.TestCase):
 
         self.assertIn("<h1>About</h1>", page)
         self.assertIn('nav-link is-active" href="/about"', page)
-        self.assertIn("Raspberry Pi Pico 2 W", page)
+        self.assertIn(
+            "Pico 2 W boards to Wi-Fi for local monitoring and communication",
+            page,
+        )
         self.assertIn('href="mailto:nodes.ro@proton.me"', page)
         self.assertIn(
             'href="https://github.com/botacatalin/wifi_pico2/blob/main/README.md"',
@@ -438,6 +475,22 @@ class DeviceFeatureTests(unittest.TestCase):
         self.assertIn("Processor Temperature", feature.render())
         self.assertIn("42.1", feature.render())
 
+    def test_overview_uses_processor_temperature_feature_reading(self):
+        class Sensor:
+            def read_u16(self):
+                return 13506
+
+        feature = ProcessorTemperatureFeature(sensor=Sensor())
+        manager = FeatureManager(features=[feature])
+
+        def temperature_reader():
+            ok, values = manager.read_values("processor-temperature")
+            return values["temperature_c"] if ok else None
+
+        metrics = ServerMetrics(temperature_reader=temperature_reader)
+
+        self.assertEqual(metrics.temperature_status(), ("42.1 °C", ""))
+
     def test_manager_registers_and_finds_injected_features(self):
         feature = OnboardLedFeature(pin=FakePin())
         manager = FeatureManager(features=[feature])
@@ -446,12 +499,13 @@ class DeviceFeatureTests(unittest.TestCase):
         self.assertIs(manager.get("onboard-led"), feature)
         self.assertEqual(
             manager.read_output("onboard-led"),
-            (True, "Onboard LED: state=off"),
+            (True, "Onboard LED — Status: Off"),
         )
 
     def test_manager_rejects_reading_that_does_not_match_manifest(self):
         feature = OnboardLedFeature(pin=FakePin())
         feature.exposed_fields = ("unexpected",)
+        feature.field_labels = {}
         manager = FeatureManager(features=[feature])
 
         ok, message = manager.read_output("onboard-led")
@@ -563,13 +617,23 @@ class FakePeerNetwork:
         self.options = options
         self.closed = False
         self.messages = []
+        self.update_count = 0
+        self.discovery_count = 0
+        self.command_count = 0
         self.__class__.instances.append(self)
 
     def close(self):
         self.closed = True
 
     def update(self):
-        pass
+        self.update_count += 1
+
+    def discover(self):
+        self.discovery_count += 1
+        provider = self.options.get("feature_catalog_provider")
+        if provider is not None:
+            provider()
+        return True
 
     def available_peers(self):
         return []
@@ -581,6 +645,7 @@ class FakePeerNetwork:
         self.messages = []
 
     def send_command(self, peer_name, command, payload):
+        self.command_count += 1
         return True, "reply"
 
 
@@ -662,12 +727,71 @@ class CommunicationPluginTests(unittest.TestCase):
             self.assertTrue(network.closed)
             self.assertFalse(store.load(True))
 
+    def test_disabled_discovery_has_no_transport_or_feature_publication(self):
+        published = []
+        plugin = CommunicationPlugin(
+            "nodes-a1b2",
+            "workshop",
+            state_store=FailingStateStore(enabled=False),
+            network_factory=FakePeerNetwork,
+            feature_catalog_provider=lambda: published.append(True) or [],
+        )
+
+        self.assertTrue(plugin.set_network_ready(True))
+        plugin.update()
+        self.assertFalse(plugin.refresh_devices())
+        self.assertEqual(plugin.available_peers(), [])
+        self.assertEqual(
+            plugin.send_command("peer", "ping"),
+            (False, "The communication plugin is disabled."),
+        )
+        self.assertEqual(FakePeerNetwork.instances, [])
+        self.assertEqual(published, [])
+
+    def test_disabling_closes_transport_and_stops_all_network_activity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = PluginStateStore(
+                os.path.join(directory, "state.json"),
+                os.path.join(directory, "state.tmp"),
+                logger=lambda unused: None,
+            )
+            published = []
+            plugin = CommunicationPlugin(
+                "nodes-a1b2",
+                "workshop",
+                state_store=store,
+                network_factory=FakePeerNetwork,
+                feature_catalog_provider=lambda: published.append(True) or [],
+            )
+            self.assertTrue(plugin.set_enabled(True))
+            self.assertTrue(plugin.set_network_ready(True))
+            network = FakePeerNetwork.instances[0]
+            plugin.update()
+            self.assertTrue(plugin.refresh_devices())
+            self.assertEqual(network.update_count, 1)
+            self.assertEqual(network.discovery_count, 1)
+            self.assertEqual(published, [True])
+
+            self.assertTrue(plugin.set_enabled(False))
+            plugin.update()
+            self.assertFalse(plugin.refresh_devices())
+            self.assertEqual(
+                plugin.send_command("peer", "ping"),
+                (False, "The communication plugin is disabled."),
+            )
+            self.assertTrue(network.closed)
+            self.assertEqual(network.update_count, 1)
+            self.assertEqual(network.discovery_count, 1)
+            self.assertEqual(network.command_count, 0)
+            self.assertEqual(published, [True])
+
     def test_builtin_commands_return_correlated_results(self):
         network = PeerNetwork.__new__(PeerNetwork)
         network.node_name = "nodes-a1b2"
         network.messages = []
         network.message_revision = 0
         network.max_payload_bytes = 160
+        network.request_handler = None
 
         self.assertEqual(
             network._execute_request("nodes-c3d4", "ping", ""),
@@ -924,7 +1048,9 @@ class CommunicationPluginTests(unittest.TestCase):
                 "ip": "192.168.1.21",
                 "features": [{
                     "id": "onboard-led",
+                    "name": "onboard-led",
                     "fields": ["state"],
+                    "field_labels": {},
                 }],
             }],
         )

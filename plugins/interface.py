@@ -13,6 +13,7 @@ class DeviceFeature:
     feature_type = "integration"
     requires_external_hardware = False
     exposed_fields = ()
+    field_labels = {}
 
     def render(self, message=""):
         """Return the feature's trusted dashboard HTML fragment."""

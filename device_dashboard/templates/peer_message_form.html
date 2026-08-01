@@ -1,5 +1,5 @@
+<form id="node-command-form" class="chat-form" method="post" action="{{SEND_COMMAND_ROUTE}}">
 <section class="dashboard-section conversation-section">
-{{? SHOW_REMOTE_FEATURE_QUERY > peer_feature_query.html}}
 <div class="section-heading"><span>Conversation</span></div>
 <div class="chat-window" aria-label="Recent messages">
 {{? HAS_MESSAGES > chat_messages.html}}
@@ -8,7 +8,12 @@
 <div class="chat-composer">
 <input id="peer-payload" name="payload" maxlength="{{MAX_PAYLOAD_LENGTH}}" placeholder="Write a message">
 <button type="submit" name="command" value="message">Send</button>
-<button class="ping-button" type="submit" name="command" value="ping">Ping</button>
-<button class="secondary-button" type="submit" formaction="{{CLEAR_CONVERSATION_ROUTE}}" formmethod="post">Clear conversation</button>
+<button class="icon-button ping-button" type="submit" name="command" value="ping" aria-label="Ping selected node" title="Ping selected node">
+<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"></circle><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13"></path></svg>
+</button>
+<button class="icon-button clear-button" type="submit" formaction="{{CLEAR_CONVERSATION_ROUTE}}" formmethod="post" aria-label="Clear conversation" title="Clear conversation">
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></svg>
+</button>
 </div>
 </section>
+</form>

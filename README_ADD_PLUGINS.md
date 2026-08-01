@@ -27,6 +27,10 @@ class RoomSensor(DeviceFeature):
     feature_type = "sensor"
     requires_external_hardware = True
     exposed_fields = ("temperature_c", "humidity_percent")
+    field_labels = {
+        "temperature_c": "Temperature (°C)",
+        "humidity_percent": "Humidity (%)",
+    }
 
     def read(self):
         return {
@@ -50,9 +54,15 @@ Rules:
 
 - Folder names start with a lowercase letter and use lowercase letters,
   numbers, and underscores.
+- Features inherit the current `api_version` from `DeviceFeature`; do not
+  override it unless implementing a future interface version.
 - `feature_id` uses lowercase letters, numbers, and hyphens and is unique.
+- `name` and `description` are required human-readable strings.
 - `feature_type` is `sensor`, `actuator`, or `integration`.
+- `requires_external_hardware` is explicitly `True` or `False`.
 - `exposed_fields` is a non-empty tuple of unique lowercase field names.
+- `field_labels` is a dictionary that optionally maps exposed fields to
+  non-empty human-readable UI labels.
 - `read()` returns a dictionary with exactly those fields. Values are strings,
   numbers, booleans, or `None`.
 - `render()` returns a trusted HTML fragment and escapes all dynamic text.
@@ -61,5 +71,8 @@ Rules:
   hardware or network resources need cleanup.
 
 The manager validates the feature, lists it under **Device Features**, and
-derives its peer-discovery manifest from `feature_id` and `exposed_fields`.
-**Nodes** can then show and query it automatically.
+derives its peer-discovery manifest from `feature_id`, `name`,
+`exposed_fields`, and `field_labels`. **Nodes** then shows it inside the remote
+node's collapsible Shared features section and can query it automatically.
+If the complete manifest exceeds the configured UDP packet limit, discovery
+advertises as many features as fit and marks the list as truncated.
