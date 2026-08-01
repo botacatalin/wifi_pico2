@@ -3,7 +3,6 @@
 import os
 
 from plugins.interface import DeviceFeature, FEATURE_API_VERSION
-from shared_web.text import capitalize_first, humanize_identifier
 
 
 class FeatureManager:
@@ -67,6 +66,8 @@ class FeatureManager:
             feature.field_labels, feature.exposed_fields
         ):
             raise ValueError("Feature field_labels must describe exposed fields.")
+        if not self._valid_remote_operations(feature.remote_operations):
+            raise ValueError("Feature remote_operations must contain get or set.")
         if getattr(feature.__class__, "render", None) is DeviceFeature.render:
             raise ValueError("Feature must implement render().")
         if getattr(feature.__class__, "read", None) is DeviceFeature.read:
@@ -129,6 +130,17 @@ class FeatureManager:
                 return False
         return True
 
+    @staticmethod
+    def _valid_remote_operations(operations):
+        if not isinstance(operations, tuple) or "get" not in operations:
+            return False
+        seen = []
+        for operation in operations:
+            if operation not in ("get", "set") or operation in seen:
+                return False
+            seen.append(operation)
+        return True
+
     def features(self):
         return tuple(self._features)
 
@@ -144,21 +156,9 @@ class FeatureManager:
                 "name": feature.name,
                 "fields": feature.exposed_fields,
                 "field_labels": feature.field_labels,
+                "operations": feature.remote_operations,
             })
         return manifest
-
-    def read_output(self, feature_id):
-        """Return one bounded-command-friendly display value."""
-        feature = self.get(feature_id)
-        if feature is None:
-            return False, "That feature is not installed on this board."
-        ok, reading = self.read_values(feature_id)
-        if not ok:
-            return False, "The feature output could not be read."
-        value = self._format_reading(
-            reading, feature.exposed_fields, feature.field_labels
-        )
-        return True, "%s — %s" % (feature.name, value)
 
     def read_values(self, feature_id):
         """Return one feature's validated structured values."""
@@ -173,6 +173,31 @@ class FeatureManager:
             self.logger("Feature %s read failed: %s" % (feature_id, exc))
             return False, None
         return True, reading
+
+    def handle_remote_operation(self, feature_id, operation, parameters):
+        """Execute one explicitly exposed peer operation and return state."""
+
+        feature = self.get(feature_id)
+        if feature is None:
+            return False, "That feature is not installed on this board."
+        if operation not in feature.remote_operations:
+            return False, "That operation is not available for this feature."
+        if not isinstance(parameters, dict):
+            return False, "Plugin parameters must be an object."
+
+        if operation == "set":
+            try:
+                feature.handle_action("set", parameters)
+            except ValueError as exc:
+                return False, str(exc)
+            except Exception as exc:
+                self.logger("Feature %s remote set failed: %s" % (feature_id, exc))
+                return False, "The feature could not be updated."
+
+        ok, result = self.read_values(feature_id)
+        if not ok:
+            return False, "The feature output could not be read."
+        return True, result
 
     @staticmethod
     def _validate_reading(reading, exposed_fields):
@@ -189,23 +214,6 @@ class FeatureManager:
             if not isinstance(value, (str, int, float, bool)) and value is not None:
                 raise ValueError("Feature reading values must be scalar.")
         return reading
-
-    @staticmethod
-    def _format_reading(reading, exposed_fields, field_labels=None):
-        """Format validated feature values for bounded peer replies."""
-        values = []
-        field_labels = field_labels or {}
-        for key in exposed_fields:
-            value = reading[key]
-            if isinstance(value, bool):
-                value = "Yes" if value else "No"
-            elif value is None:
-                value = "Unavailable"
-            elif key == "state" and isinstance(value, str):
-                value = capitalize_first(value)
-            label = field_labels.get(key) or humanize_identifier(key)
-            values.append("%s: %s" % (label, value))
-        return ", ".join(values)
 
     def update(self):
         for feature in self._features:

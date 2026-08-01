@@ -205,7 +205,10 @@ class ConnectionFlowTests(unittest.TestCase):
             communication_plugin=communication,
             feature_manager=manager,
         )
-        body = b"peer=nodes-c3d4&command=feature_read&feature_id=onboard-led"
+        body = (
+            b"peer=nodes-c3d4&command=plugin&operation=get"
+            b"&feature_id=onboard-led"
+        )
         client = FakeSocket([(
             b"POST /communication/command HTTP/1.1\r\nContent-Length: "
             + str(len(body)).encode("ascii")
@@ -217,7 +220,15 @@ class ConnectionFlowTests(unittest.TestCase):
 
         self.assertEqual(
             communication.sent,
-            [("nodes-c3d4", "feature_read", "onboard-led")],
+            [(
+                "nodes-c3d4",
+                "plugin",
+                {
+                    "feature_id": "onboard-led",
+                    "operation": "get",
+                    "parameters": {},
+                },
+            )],
         )
         self.assertIn(b"303 See Other", client.output)
 
@@ -238,6 +249,31 @@ class ConnectionFlowTests(unittest.TestCase):
 
         self.assertIn(b"HTTP/1.1 200 OK", client.output)
         self.assertTrue(client.output.endswith(b"1"))
+
+    def test_message_revision_forces_stale_nodes_page_to_stop_when_disabled(self):
+        plugin = FakeCommunicationPlugin()
+        plugin.enabled = False
+        plugin.revision = 0
+        app = App(
+            FakeWiFi(),
+            FakeCredentialStore(),
+            provisioned=True,
+            communication_plugin=plugin,
+        )
+        client = FakeSocket([
+            b"GET /communication/message-revision HTTP/1.1\r\n"
+            b"Host: device\r\n\r\n",
+        ])
+
+        app.handle_client(client, ("192.168.1.50", 1234))
+
+        self.assertTrue(client.output.endswith(b"-1"))
+
+        nodes = FakeSocket([
+            b"GET /nodes HTTP/1.1\r\nHost: device\r\n\r\n",
+        ])
+        app.handle_client(nodes, ("192.168.1.50", 1234))
+        self.assertNotIn(b"window.setInterval(checkMessages", nodes.output)
 
     def test_dashboard_sends_message_to_selected_discovered_peer(self):
         plugin = FakeCommunicationPlugin()

@@ -89,7 +89,8 @@ def device_page(
                 exposed.append(
                     '<form class="peer-feature-action" method="post" action="%s">'
                     '<input type="hidden" name="peer" value="%s">'
-                    '<input type="hidden" name="command" value="feature_read">'
+                    '<input type="hidden" name="command" value="plugin">'
+                    '<input type="hidden" name="operation" value="get">'
                     '<input type="hidden" name="feature_id" value="%s">'
                     '<button type="submit"><strong>%s</strong><small>%s</small></button>'
                     '</form>'

@@ -3,7 +3,7 @@
 import json
 import os
 
-from peer_communication.peer import PeerNetwork
+from peer_communication.peer import PeerNetwork, normalize_command
 
 
 class PluginStateStore:
@@ -58,7 +58,7 @@ class CommunicationPlugin:
     COMMANDS = (
         "message",
         "ping",
-        "feature_read",
+        "plugin",
     )
 
     def __init__(
@@ -70,7 +70,7 @@ class CommunicationPlugin:
         max_payload_bytes=160,
         logger=print,
         network_factory=PeerNetwork,
-        feature_reader=None,
+        feature_handler=None,
         feature_catalog_provider=None,
         **network_options
     ):
@@ -81,7 +81,7 @@ class CommunicationPlugin:
         self.network_factory = network_factory
         self.network_options = network_options
         self.max_payload_bytes = max_payload_bytes
-        self.feature_reader = feature_reader
+        self.feature_handler = feature_handler
         self.feature_catalog_provider = feature_catalog_provider
         self.network = None
         self.enabled = self.state_store.load(enabled_default)
@@ -176,13 +176,22 @@ class CommunicationPlugin:
             return False, "The communication plugin is disabled."
         if not peer_name:
             return False, "Please select an available board."
+        command = normalize_command(command)
         if command not in self.COMMANDS:
             return False, "Unsupported command."
         if command == "message" and not payload:
             return False, "Please enter a message."
-        if command == "feature_read" and not payload:
-            return False, "Please select a feature to read."
-        if len(payload.encode("utf-8")) > self.max_payload_bytes:
+        if command == "plugin":
+            valid, error = self._validate_plugin_request(payload)
+            if not valid:
+                return False, error
+        elif not isinstance(payload, str):
+            return False, "The command payload must be text."
+        encoded_payload = (
+            json.dumps(payload).encode("utf-8")
+            if command == "plugin" else payload.encode("utf-8")
+        )
+        if len(encoded_payload) > self.max_payload_bytes:
             return False, "The command payload is too long."
         return network.send_command(peer_name, command, payload)
 
@@ -204,15 +213,38 @@ class CommunicationPlugin:
         )
 
     def _handle_request(self, message_type, payload):
-        if message_type != "feature_read" or self.feature_reader is None:
+        if message_type != "plugin" or self.feature_handler is None:
             return False, "Unsupported command."
-        if len(payload.encode("utf-8")) > self.max_payload_bytes:
-            return False, "The feature ID is too long."
-        ok, reply = self.feature_reader(payload)
-        reply = str(reply)
-        if len(reply.encode("utf-8")) > self.max_payload_bytes:
+        valid, error = self._validate_plugin_request(payload)
+        if not valid:
+            return False, error
+        ok, reply = self.feature_handler(
+            payload["feature_id"],
+            payload["operation"],
+            payload["parameters"],
+        )
+        if ok and not isinstance(reply, dict):
+            return False, "The plugin result must be an object."
+        if len(json.dumps(reply).encode("utf-8")) > self.max_payload_bytes:
             return False, "The feature output is too long."
         return bool(ok), reply
+
+    @staticmethod
+    def _validate_plugin_request(payload):
+        if not isinstance(payload, dict):
+            return False, "Plugin request must be an object."
+        feature_id = payload.get("feature_id")
+        operation = normalize_command(payload.get("operation"))
+        parameters = payload.get("parameters", {})
+        if not isinstance(feature_id, str) or not feature_id:
+            return False, "Please select a feature."
+        if operation not in ("get", "set"):
+            return False, "Unsupported plugin operation."
+        if not isinstance(parameters, dict):
+            return False, "Plugin parameters must be an object."
+        payload["operation"] = operation
+        payload["parameters"] = parameters
+        return True, ""
 
     def _active_network(self):
         """Return the peer transport only while all network gates are open."""

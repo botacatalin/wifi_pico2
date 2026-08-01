@@ -133,7 +133,7 @@ def main():
         max_packet_bytes=COMMUNICATION_MAX_PACKET_BYTES,
         max_payload_bytes=COMMUNICATION_MAX_PAYLOAD_BYTES,
         logger=log,
-        feature_reader=feature_manager.read_output,
+        feature_handler=feature_manager.handle_remote_operation,
         feature_catalog_provider=feature_manager.discovery_manifest,
     )
 

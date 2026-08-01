@@ -319,7 +319,8 @@ class DevicePageTests(unittest.TestCase):
         self.assertNotIn("Read node feature", page)
         self.assertIn('class="peer-feature-action"', page)
         self.assertIn('name="feature_id" value="onboard-led"', page)
-        self.assertIn('name="command" value="feature_read"', page)
+        self.assertIn('name="command" value="plugin"', page)
+        self.assertIn('name="operation" value="get"', page)
         self.assertIn("Onboard LED", page)
         self.assertIn("Status", page)
         self.assertIn('<details class="peer-features">', page)
@@ -558,9 +559,49 @@ class DeviceFeatureTests(unittest.TestCase):
         self.assertEqual(manager.features(), (feature,))
         self.assertIs(manager.get("onboard-led"), feature)
         self.assertEqual(
-            manager.read_output("onboard-led"),
-            (True, "Onboard LED — Status: Off"),
+            manager.read_values("onboard-led"),
+            (True, {"state": "off"}),
         )
+
+    def test_remote_get_and_set_return_validated_feature_state(self):
+        pin = FakePin()
+        manager = FeatureManager(features=[OnboardLedFeature(pin=pin)])
+
+        self.assertEqual(
+            manager.handle_remote_operation("onboard-led", "get", {}),
+            (True, {"state": "off"}),
+        )
+        self.assertEqual(
+            manager.handle_remote_operation(
+                "onboard-led", "set", {"state": "on"}
+            ),
+            (True, {"state": "on"}),
+        )
+        self.assertEqual(pin.value(), 1)
+
+    def test_remote_set_is_rejected_for_read_only_feature(self):
+        manager = FeatureManager(features=[
+            ProcessorTemperatureFeature(sensor=None),
+        ])
+
+        self.assertEqual(
+            manager.handle_remote_operation(
+                "processor-temperature", "set", {"temperature_c": 20}
+            ),
+            (False, "That operation is not available for this feature."),
+        )
+
+    def test_remote_set_rejects_invalid_actuator_parameters(self):
+        pin = FakePin()
+        manager = FeatureManager(features=[OnboardLedFeature(pin=pin)])
+
+        self.assertEqual(
+            manager.handle_remote_operation(
+                "onboard-led", "set", {"state": "invalid"}
+            ),
+            (False, "LED state must be on or off."),
+        )
+        self.assertEqual(pin.value(), 0)
 
     def test_manager_rejects_reading_that_does_not_match_manifest(self):
         feature = OnboardLedFeature(pin=FakePin())
@@ -568,10 +609,10 @@ class DeviceFeatureTests(unittest.TestCase):
         feature.field_labels = {}
         manager = FeatureManager(features=[feature])
 
-        ok, message = manager.read_output("onboard-led")
+        ok, reading = manager.read_values("onboard-led")
 
         self.assertFalse(ok)
-        self.assertEqual(message, "The feature output could not be read.")
+        self.assertIsNone(reading)
 
     def test_discovery_has_no_fixed_feature_count_and_loads_each_folder(self):
         folders = ["plugin_%d" % index for index in range(24)]
@@ -680,6 +721,7 @@ class FakePeerNetwork:
         self.update_count = 0
         self.discovery_count = 0
         self.command_count = 0
+        self.commands = []
         self.__class__.instances.append(self)
 
     def close(self):
@@ -706,6 +748,7 @@ class FakePeerNetwork:
 
     def send_command(self, peer_name, command, payload):
         self.command_count += 1
+        self.commands.append((peer_name, command, payload))
         return True, "reply"
 
 
@@ -884,7 +927,7 @@ class CommunicationPluginTests(unittest.TestCase):
             (False, "Unsupported command."),
         )
 
-    def test_feature_read_is_dispatched_to_injected_handler(self):
+    def test_plugin_request_is_dispatched_to_injected_handler(self):
         network = PeerNetwork.__new__(PeerNetwork)
         network.node_name = "nodes-a1b2"
         network.messages = []
@@ -892,21 +935,28 @@ class CommunicationPluginTests(unittest.TestCase):
         network.max_payload_bytes = 160
         network.request_handler = lambda command, payload: (
             True,
-            "%s=%s" % (command, payload),
+            {"command": command, "feature": payload["feature_id"]},
         )
 
         self.assertEqual(
             network._execute_request(
-                "nodes-c3d4", "feature_read", "onboard-led"
+                "nodes-c3d4",
+                "plugin",
+                {
+                    "feature_id": "onboard-led",
+                    "operation": "get",
+                    "parameters": {},
+                },
             ),
-            (True, "feature_read=onboard-led"),
+            (True, {"command": "plugin", "feature": "onboard-led"}),
         )
 
-    def test_udp_feature_read_request_returns_current_output(self):
+    def test_udp_plugin_get_request_returns_structured_result(self):
         packet = (
-            b'{"message_type":"feature_read","kind":"request",'
+            b'{"message_type":"plugin","kind":"request",'
             b'"request_id":"request-9","node_name":"peer-one",'
-            b'"payload":"onboard-led","group_name":"workshop"}'
+            b'"feature_id":"onboard-led","operation":"get",'
+            b'"parameters":{},"group_name":"workshop"}'
         )
         udp_socket = FakeDatagramSocket([
             (packet, ("192.168.1.21", 4242)),
@@ -916,7 +966,7 @@ class CommunicationPluginTests(unittest.TestCase):
             "workshop",
             request_handler=lambda command, payload: (
                 True,
-                "Onboard LED: On",
+                {"state": "on"},
             ),
             udp_socket=udp_socket,
         )
@@ -924,10 +974,86 @@ class CommunicationPluginTests(unittest.TestCase):
         network._receive_one()
 
         response = udp_socket.sent[0][0].decode("utf-8")
-        self.assertIn('"message_type": "feature_read"', response)
+        self.assertIn('"message_type": "plugin"', response)
         self.assertIn('"kind": "reply"', response)
         self.assertIn('"request_id": "request-9"', response)
-        self.assertIn('"payload": "Onboard LED: On"', response)
+        self.assertIn('"feature_id": "onboard-led"', response)
+        self.assertIn('"operation": "get"', response)
+        self.assertIn('"result": {"state": "on"}', response)
+
+    def test_udp_sender_correlates_structured_plugin_set_reply(self):
+        udp_socket = FakeDatagramSocket()
+        network = PeerNetwork(
+            "nodes-a1b2",
+            "workshop",
+            udp_socket=udp_socket,
+        )
+        request_id = "nodes-a1b2-%d-1" % network.session_id
+        mismatched_reply = (
+            '{"message_type":"plugin","kind":"reply",'
+            '"request_id":"%s","node_name":"peer-one",'
+            '"feature_id":"onboard-led","operation":"get",'
+            '"result":{"state":"off"},"group_name":"workshop"}'
+            % request_id
+        ).encode("utf-8")
+        reply = (
+            '{"message_type":"plugin","kind":"reply",'
+            '"request_id":"%s","node_name":"peer-one",'
+            '"feature_id":"onboard-led","operation":"set",'
+            '"result":{"state":"on"},"group_name":"workshop"}'
+            % request_id
+        ).encode("utf-8")
+        udp_socket.incoming.extend([
+            (mismatched_reply, ("192.168.1.21", 4242)),
+            (reply, ("192.168.1.21", 4242)),
+        ])
+        network.peers["peer-one"] = {
+            "address": ("192.168.1.21", 4242),
+            "last_seen": time.ticks_ms(),
+        }
+
+        self.assertEqual(
+            network.send_command(
+                "peer-one",
+                "plugin",
+                {
+                    "feature_id": "onboard-led",
+                    "operation": "set",
+                    "parameters": {"state": "on"},
+                },
+            ),
+            (True, {"state": "on"}),
+        )
+        request = udp_socket.sent[0][0].decode("utf-8")
+        self.assertIn('"message_type": "plugin"', request)
+        self.assertIn('"operation": "set"', request)
+        self.assertIn('"parameters": {"state": "on"}', request)
+
+    def test_peer_rejects_malformed_plugin_request_before_sending(self):
+        udp_socket = FakeDatagramSocket()
+        network = PeerNetwork(
+            "nodes-a1b2",
+            "workshop",
+            udp_socket=udp_socket,
+        )
+        network.peers["peer-one"] = {
+            "address": ("192.168.1.21", 4242),
+            "last_seen": time.ticks_ms(),
+        }
+
+        self.assertEqual(
+            network.send_command(
+                "peer-one",
+                "plugin",
+                {
+                    "feature_id": "onboard-led",
+                    "operation": "delete",
+                    "parameters": {},
+                },
+            ),
+            (False, "Invalid plugin request."),
+        )
+        self.assertEqual(udp_socket.sent, [])
 
     def test_discovery_uses_configured_broadcast_address(self):
         udp_socket = FakeDatagramSocket()
@@ -1035,6 +1161,50 @@ class CommunicationPluginTests(unittest.TestCase):
                 (False, "The command payload is too long."),
             )
 
+    def test_plugin_normalizes_outbound_commands_to_lowercase(self):
+        plugin = CommunicationPlugin(
+            "nodes-a1b2",
+            "workshop",
+            state_store=FailingStateStore(enabled=True),
+            network_factory=FakePeerNetwork,
+        )
+        self.assertTrue(plugin.set_network_ready(True))
+
+        self.assertEqual(
+            plugin.send_command("peer-one", "  PiNg  ", ""),
+            (True, "reply"),
+        )
+        self.assertEqual(
+            FakePeerNetwork.instances[0].commands,
+            [("peer-one", "ping", "")],
+        )
+
+    def test_ping_request_returns_lowercase_ping_reply_with_ack(self):
+        packet = (
+            b'{"message_type":"PING","kind":"request",'
+            b'"request_id":"request-ping-1","node_name":"peer-one",'
+            b'"payload":"","group_name":"workshop"}'
+        )
+        udp_socket = FakeDatagramSocket([
+            (packet, ("192.168.1.21", 4242)),
+        ])
+        network = PeerNetwork(
+            "nodes-a1b2",
+            "workshop",
+            udp_socket=udp_socket,
+        )
+
+        network._receive_one()
+
+        reply = udp_socket.sent[0][0].decode("utf-8")
+        self.assertIn('"message_type": "ping"', reply)
+        self.assertIn('"kind": "reply"', reply)
+        self.assertIn('"payload": "Ping ACK from nodes-a1b2."', reply)
+        self.assertEqual(
+            network.recent_messages()[-1]["payload"],
+            "Ping",
+        )
+
     def test_udp_command_packet_dispatches_and_preserves_reply_id(self):
         packet = (
             b'{"message_type":"message","kind":"request",'
@@ -1110,6 +1280,7 @@ class CommunicationPluginTests(unittest.TestCase):
                     "name": "onboard-led",
                     "fields": ["state"],
                     "field_labels": {},
+                    "operations": ["get"],
                 }],
             }],
         )

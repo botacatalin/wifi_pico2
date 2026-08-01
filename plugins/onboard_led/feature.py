@@ -13,6 +13,7 @@ class OnboardLedFeature(DeviceFeature):
     requires_external_hardware = False
     exposed_fields = ("state",)
     field_labels = {"state": "Status"}
+    remote_operations = ("get", "set")
 
     def __init__(self, pin=None):
         if pin is None:
@@ -29,7 +30,10 @@ class OnboardLedFeature(DeviceFeature):
     def handle_action(self, action, form):
         if action != "set":
             raise ValueError("Unknown LED action.")
-        turn_on = form.get("state") == "on"
+        state = form.get("state")
+        if state not in ("on", "off"):
+            raise ValueError("LED state must be on or off.")
+        turn_on = state == "on"
         self.pin.value(1 if turn_on else 0)
         return "The onboard LED is now %s." % ("on" if turn_on else "off")
 

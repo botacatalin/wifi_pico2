@@ -14,6 +14,7 @@ class DeviceFeature:
     requires_external_hardware = False
     exposed_fields = ()
     field_labels = {}
+    remote_operations = ("get",)
 
     def render(self, message=""):
         """Return the feature's trusted dashboard HTML fragment."""

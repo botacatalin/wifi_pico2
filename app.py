@@ -725,7 +725,13 @@ class App:
 
     def _route_message_revision(self, client, request):
         plugin = self.communication_plugin
-        revision = plugin.message_revision() if plugin is not None else 0
+        # An already-open Nodes page may still be polling after discovery was
+        # disabled from another tab. A distinct sentinel forces that page to
+        # reload once; the disabled page does not include the polling script.
+        revision = (
+            plugin.message_revision()
+            if plugin is not None and plugin.enabled else -1
+        )
         send_text(client, str(revision))
 
     def _route_network(
@@ -820,11 +826,18 @@ class App:
         form = parse_form(request.body)
         peer_name = form.get("peer", "").strip()
         command = form.get("command", "").strip()
-        payload = (
-            form.get("feature_id", "").strip()
-            if command == "feature_read"
-            else form.get("payload", "").strip()
-        )
+        if command.lower() == "plugin":
+            parameters = {}
+            for key, value in form.items():
+                if key not in ("peer", "command", "feature_id", "operation"):
+                    parameters[key] = value
+            payload = {
+                "feature_id": form.get("feature_id", "").strip(),
+                "operation": form.get("operation", "get").strip().lower(),
+                "parameters": parameters,
+            }
+        else:
+            payload = form.get("payload", "").strip()
 
         if self.communication_plugin is None:
             self.server_message = "The communication plugin is unavailable."

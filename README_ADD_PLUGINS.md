@@ -31,6 +31,7 @@ class RoomSensor(DeviceFeature):
         "temperature_c": "Temperature (°C)",
         "humidity_percent": "Humidity (%)",
     }
+    remote_operations = ("get",)
 
     def read(self):
         return {
@@ -65,6 +66,8 @@ Rules:
   non-empty human-readable UI labels.
 - `read()` returns a dictionary with exactly those fields. Values are strings,
   numbers, booleans, or `None`.
+- `remote_operations` is a tuple containing `"get"`, with optional `"set"`
+  only for features that validate and permit remote mutation.
 - `render()` returns a trusted HTML fragment and escapes all dynamic text.
 - Actuators override `handle_action(action, form)`; the default is read-only.
 - Override `update()` only for short, non-blocking work and `close()` only when
@@ -72,7 +75,20 @@ Rules:
 
 The manager validates the feature, lists it under **Device Features**, and
 derives its peer-discovery manifest from `feature_id`, `name`,
-`exposed_fields`, and `field_labels`. **Nodes** then shows it inside the remote
-node's collapsible Shared features section and can query it automatically.
+`exposed_fields`, `field_labels`, and `remote_operations`. **Nodes** then shows
+it inside the remote node's collapsible Shared features section and can query
+it automatically with the `plugin`/`get` protocol.
 If the complete manifest exceeds the configured UDP packet limit, discovery
 advertises as many features as fit and marks the list as truncated.
+
+To allow remote mutation, an actuator explicitly declares:
+
+```python
+remote_operations = ("get", "set")
+```
+
+Remote `set` calls are passed to `handle_action("set", parameters)`. Validate
+every required field and allowed value before touching hardware. After a
+successful update, the manager calls `read()` and returns the validated state
+in the structured plugin reply. Sensors should keep the default get-only
+behavior.

@@ -15,13 +15,13 @@ test suite. The current version includes:
   network controls, and a low-distraction interface designed for long-running
   monitoring on desktop and phone screens;
 - automatic discovery of modular Device Features from `plugins/`, including
-  onboard LED and processor-temperature controls;
+  the onboard LED actuator and processor-temperature sensor;
 - optional, persistent UDP peer discovery, ping, and short message/reply flows;
 - bounded HTTP requests, UDP packets, message history, retries, and timeouts;
 - CYW43 power saving disabled by default for more reliable always-on HTTP and
   multi-board UDP communication.
 
-The host suite currently contains 77 tests organized by `device_dashboard`,
+The host suite currently contains 85 tests organized by `device_dashboard`,
 `network_setup`, `peer_communication`, `plugins`, and `shared_web`, plus the
 cross-component application flow. It covers helpers, rendering,
 provisioning transitions, AP shutdown scheduling, feature and messaging lifecycles, peer
@@ -153,6 +153,8 @@ class ExampleFeature(DeviceFeature):
         "temperature_c": "Temperature (°C)",
         "connected": "Connected",
     }
+    # All features support get. Add set only for validated remote mutation.
+    remote_operations = ("get",)
 
     def render(self, message=""):
         return "<header>...</header>"
@@ -190,17 +192,23 @@ and returns one or more named values. `exposed_fields` declares those names and
 `read()` returns a compact dictionary with exactly the same keys. Field names
 use lowercase letters, numbers, and underscores. Values may be strings,
 numbers, booleans, or `None`. Optional `field_labels` provide readable names
-for the Nodes interface. The manager validates and normalizes this output
+for the Nodes interface. The manager validates this output
 centrally before it is shared, and the communication layer enforces the
 configured payload limit.
 
 Every compatible feature implements `read()`. Peer discovery automatically
-advertises its feature ID, name, exposed fields, and field labels, so Nodes
-shows what each remote board provides. Select a discovered board and click one
-of its shared features. The receiving board
+advertises its feature ID, name, exposed fields, field labels, and allowed
+remote operations, so Nodes shows what each remote board provides. Select a
+discovered board and click one of its shared features. The receiving board
 resolves the requested `feature_id` locally and returns its current value.
 Missing, failed, mismatched, and oversized outputs produce bounded error
 replies without exposing feature internals.
+
+Every feature supports the remote `get` operation. Remote `set` is opt-in:
+an actuator declares `remote_operations = ("get", "set")` and validates its
+parameters in `handle_action("set", parameters)`. The bundled onboard LED
+accepts only `{"state": "on"}` or `{"state": "off"}`. Read-only features,
+including processor temperature, reject `set` without touching hardware.
 
 ## Messaging
 
@@ -218,7 +226,8 @@ Feature advertisement. Installed features continue to operate locally, but
 their catalog and values are not published to other nodes while discovery is
 disabled, which also hides the board from its peers. The choice is saved in
 `communication_plugin.json` and restored after restart. The plugin starts only
-after the board receives a LAN address.
+after the board receives a LAN address. An already-open Nodes page detects the
+disabled state, reloads once, and then stops conversation polling.
 
 When enabled, the plugin card identifies the local board and group below its
 status text, for example:
@@ -283,17 +292,18 @@ received bubbles show the remote board ID. Retries reuse cached replies and do
 not duplicate chat entries. Only failures are shown as page notices.
 
 Features can also be queried from this page. Clicking a shared feature sends
-its stable ID to that node, and the current result appears in Conversation,
-for example `Onboard LED — Status: On` or
-`Processor Temperature — Temperature (°C): 42.0`.
+its stable ID to that node, and its structured state appears in Conversation.
 Each node's Shared features section is collapsed independently by default and
 shows the number of features advertised by that node.
 
 Application packets use the same `message_type` for a request and its response:
-`message` for text delivery, `ping` for availability checks, and `feature_read`
-for an exact read-only feature query whose payload is the feature ID. `kind`
-distinguishes `request`, successful `reply`, and rejected `error` packets. A
+`message` for text delivery, `ping` for availability checks, and `plugin` for
+structured feature access. Plugin operations are lowercase `get` or `set`.
+`kind` distinguishes `request`, successful `reply`, and rejected `error`
+packets. A
 separate `command` field and boolean `reply` field are not used.
+Command names are normalized to lowercase at both the plugin and UDP transport
+boundaries, and replies always carry the canonical lowercase `message_type`.
 
 Message request:
 
@@ -324,16 +334,54 @@ Successful response:
 A rejected request returns the same structure with `kind: "error"` and an
 explanation in `payload`. This means the target received the request but could
 not accept it. It differs from a timeout, where no matching response arrived.
-Ping uses the same fields with `message_type: "ping"`. Feature reads use
-`message_type: "feature_read"` and return the display value in `payload`.
+Ping uses the same fields with `message_type: "ping"` and a successful reply
+payload of `Ping ACK from <board-id>.`. Plugin requests add `feature_id`,
+`operation`, and a bounded `parameters` object. Successful plugin replies
+return the validated feature state in `result`; rejected requests use
+`kind: "error"` and an `error` string. All features expose `get`, while `set` is
+available only when the feature explicitly opts into remote mutation.
+
+Plugin `get` request and reply:
+
+```json
+{
+  "message_type": "plugin",
+  "kind": "request",
+  "request_id": "nodes-75833497-12345-2",
+  "node_name": "nodes-75833497",
+  "group_name": "nodes-local",
+  "feature_id": "onboard-led",
+  "operation": "get",
+  "parameters": {}
+}
+```
+
+```json
+{
+  "message_type": "plugin",
+  "kind": "reply",
+  "request_id": "nodes-75833497-12345-2",
+  "node_name": "nodes-91ab2041",
+  "group_name": "nodes-local",
+  "feature_id": "onboard-led",
+  "operation": "get",
+  "result": {"state": "off"}
+}
+```
+
+To turn the remotely exposed LED on, use the same request with
+`"operation": "set"` and `"parameters": {"state": "on"}`. The reply returns
+the resulting validated state. The Nodes UI currently issues `get`; the
+protocol and feature manager also support validated `set` callers.
 
 Matching the message type, request ID, sender name, and source IP address
-prevents an unrelated response from completing the request.
+prevents an unrelated response from completing the request. Plugin replies must
+also match the requested feature ID and operation.
 
 Commands retry with the same request ID during the bounded reply window. The
 receiver remembers a small number of recent IDs, so a retried command returns
-its previous reply without executing twice. Successful requests and replies are
-shown in the conversation, while failures appear as Nodes-page notices.
+its previous reply without executing twice. Plugin results are shown in the
+requesting board's conversation, while failures appear as Nodes-page notices.
 Request IDs include a per-plugin-session value so disabling, re-enabling, or
 restarting a sender does not collide with an ID still cached by another board.
 Deduplication keys also include the message type.
@@ -428,16 +476,24 @@ Unknown routes return `404 Not Found`.
 
 ## Configuration
 
-Settings are in `config.py`. Current identity and setup defaults are:
+Settings are in `config.py`. Selected current defaults are:
 
 ```python
 DEVICE_NAME = "Nodes"
 AP_SSID = "Nodes-Setup"
+AP_OPEN = True
 AP_IP = "192.168.4.1"
+AP_NETMASK = "255.255.255.0"
 HTTP_PORT = 80
+MAX_HEADER_BYTES = 4096
+MAX_BODY_BYTES = 2048
+SOCKET_TIMEOUT_SECONDS = 5
+SERVER_ACCEPT_TIMEOUT_SECONDS = 1
 STATIC_CACHE_SECONDS = 3600
 CONNECT_TIMEOUT_MS = 12000
+CONNECT_STATUS_GRACE_MS = 1500
 WIFI_POWER_MANAGEMENT = 0xA11140
+CONNECTION_START_DELAY_MS = 1500
 CONNECTION_PAGE_SETTLE_MS = 250
 CONNECTION_POLL_INTERVAL_MS = 1000
 CONNECTION_REQUEST_TIMEOUT_MS = 16000
@@ -490,16 +546,16 @@ device_dashboard/
   templates/               Overview, Nodes, Device Features, Network, and components
 peer_communication/
   peer.py                   Bounded UDP discovery and command/reply protocol
+  plugin.py                 Enable/disable lifecycle and state persistence
 tests/
   component_cases.py        Shared component test cases and lightweight fakes
   test_device_dashboard.py  Dashboard rendering test entry point
   test_network_setup.py     Provisioning component test entry point
-  test_network_setup_wifi.py Wi-Fi state and CYW43 configuration tests
+  test_network_setup_wifi.py  Wi-Fi state and CYW43 configuration tests
   test_peer_communication.py UDP discovery and messaging test entry point
   test_plugins.py           Device feature and manager test entry point
   test_shared_web.py        HTTP, template, form, and text helper tests
   test_connection_flow.py   Cross-component application integration tests
-  plugin.py                 Enable/disable lifecycle and state persistence
 plugins/
   interface.py              Versioned feature contract and lifecycle defaults
   manager.py                Feature discovery and shared lifecycle
@@ -578,8 +634,10 @@ is delivered.
 
 - Confirm the target still appears with its current IP address.
 - Check that both boards run the same protocol version; the current format uses
-  `message_type`, `kind`, `request_id`, `node_name`, `group_name`, and `payload`.
-- Keep payloads within `COMMUNICATION_MAX_PAYLOAD_BYTES`.
+  `message_type`, `kind`, `request_id`, `node_name`, and `group_name`, plus a
+  text `payload` or the structured plugin fields.
+- Keep text payloads and serialized plugin data within
+  `COMMUNICATION_MAX_PAYLOAD_BYTES`.
 - Check for packet loss or client isolation on the Wi-Fi network.
 
 ## Limitations

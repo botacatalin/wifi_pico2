@@ -5,6 +5,14 @@ import socket
 import time
 
 
+def normalize_command(command):
+    """Return the canonical lowercase form used on the UDP wire."""
+
+    if not isinstance(command, str):
+        return ""
+    return command.strip().lower()
+
+
 def default_node_name(device_name):
     """Create a readable name that is normally unique to this board."""
 
@@ -131,6 +139,27 @@ class PeerNetwork:
     def send_command(self, peer_name, command, payload=""):
         """Send a command to a discovered peer and wait for its matched reply."""
 
+        command = normalize_command(command)
+        if command not in ("message", "ping", "plugin"):
+            return False, "Unsupported command."
+        if command == "plugin":
+            if not isinstance(payload, dict):
+                return False, "Plugin request must be an object."
+            payload = {
+                "feature_id": payload.get("feature_id"),
+                "operation": normalize_command(payload.get("operation")),
+                "parameters": payload.get("parameters", {}),
+            }
+            validation_packet = {"kind": "request"}
+            validation_packet.update(payload)
+            if not self._valid_plugin_packet(validation_packet):
+                return False, "Invalid plugin request."
+            if len(json.dumps(payload).encode("utf-8")) > self.max_payload_bytes:
+                return False, "The command payload is too long."
+        elif not isinstance(payload, str):
+            return False, "The command payload must be text."
+        elif len(payload.encode("utf-8")) > self.max_payload_bytes:
+            return False, "The command payload is too long."
         peer = self.peers.get(peer_name)
         if peer is None:
             return False, "That board is no longer available."
@@ -147,13 +176,19 @@ class PeerNetwork:
             "kind": "request",
             "request_id": message_id,
             "node_name": self.node_name,
-            "payload": payload,
         }
+        if command == "plugin":
+            packet.update(payload)
+        else:
+            packet["payload"] = payload
 
         if command == "message":
             display_payload = payload
-        elif command == "feature_read":
-            display_payload = "Read feature: %s" % payload
+        elif command == "plugin":
+            display_payload = "%s feature: %s" % (
+                payload["operation"].capitalize(),
+                payload["feature_id"],
+            )
         else:
             display_payload = "Ping"
         self._remember_message("sent", peer_name, display_payload)
@@ -188,12 +223,27 @@ class PeerNetwork:
                     and packet.get("request_id") == message_id
                     and packet.get("node_name") == peer_name
                     and address[0] == peer["address"][0]
+                    and (
+                        command != "plugin"
+                        or (
+                            packet.get("feature_id") == payload["feature_id"]
+                            and packet.get("operation") == payload["operation"]
+                        )
+                    )
                 ):
                     ok = packet.get("kind") == "reply"
-                    reply_payload = str(packet.get("payload", "Message received."))
-                    if ok and command == "feature_read":
+                    if command == "plugin":
+                        reply_payload = (
+                            packet.get("result", {})
+                            if ok else packet.get("error", "Plugin request failed.")
+                        )
+                    else:
+                        reply_payload = str(
+                            packet.get("payload", "Message received.")
+                        )
+                    if ok and command == "plugin":
                         self._remember_message(
-                            "received", peer_name, reply_payload
+                            "received", peer_name, json.dumps(reply_payload)
                         )
                     return ok, reply_payload
             time.sleep_ms(20)
@@ -234,22 +284,27 @@ class PeerNetwork:
         if packet.get("group_name") != self.group_name:
             return None
 
-        packet_type = packet.get("message_type")
+        packet_type = normalize_command(packet.get("message_type"))
         if packet_type not in (
             "hello",
             "hello_reply",
             "message",
             "ping",
-            "feature_read",
+            "plugin",
         ):
             return None
-        if packet_type in ("message", "ping", "feature_read"):
+        packet["message_type"] = packet_type
+        if packet_type in ("message", "ping", "plugin"):
             if packet.get("kind") not in ("request", "reply", "error"):
                 return None
             request_id = packet.get("request_id")
             if not isinstance(request_id, str) or not request_id:
                 return None
-            if not isinstance(packet.get("payload", ""), str):
+            if packet_type != "plugin" and not isinstance(
+                packet.get("payload", ""), str
+            ):
+                return None
+            if packet_type == "plugin" and not self._valid_plugin_packet(packet):
                 return None
 
         node = packet.get("node_name")
@@ -276,11 +331,19 @@ class PeerNetwork:
         if packet_type == "hello":
             self._send_discovery(address, "hello_reply")
         elif (
-            packet_type in ("message", "ping", "feature_read")
+            packet_type in ("message", "ping", "plugin")
             and packet.get("kind") == "request"
         ):
             request_id = packet["request_id"]
-            payload = packet.get("payload", "")
+            payload = (
+                {
+                    "feature_id": packet["feature_id"],
+                    "operation": packet["operation"],
+                    "parameters": packet.get("parameters", {}),
+                }
+                if packet_type == "plugin"
+                else packet.get("payload", "")
+            )
             command_key = (node, packet_type, request_id)
             cached = self.recent_commands.get(command_key)
             if cached is None:
@@ -290,16 +353,19 @@ class PeerNetwork:
                 self._remember_command(command_key, ok, reply_payload)
             else:
                 ok, reply_payload = cached
-            self._send(
-                address,
-                {
-                    "message_type": packet_type,
-                    "kind": "reply" if ok else "error",
-                    "request_id": request_id,
-                    "node_name": self.node_name,
-                    "payload": reply_payload,
-                },
-            )
+            response = {
+                "message_type": packet_type,
+                "kind": "reply" if ok else "error",
+                "request_id": request_id,
+                "node_name": self.node_name,
+            }
+            if packet_type == "plugin":
+                response["feature_id"] = payload["feature_id"]
+                response["operation"] = payload["operation"]
+                response["result" if ok else "error"] = reply_payload
+            else:
+                response["payload"] = reply_payload
+            self._send(address, response)
 
         return packet, address
 
@@ -310,6 +376,7 @@ class PeerNetwork:
         self.recent_commands[command_key] = (ok, reply_payload)
 
     def _execute_request(self, node, message_type, payload):
+        message_type = normalize_command(message_type)
         if message_type == "ping":
             reply_payload = "Ping ACK from %s." % self.node_name
             self._remember_message("received", node, "Ping")
@@ -328,6 +395,22 @@ class PeerNetwork:
             except Exception:
                 return False, "The command could not be completed."
         return False, "Unsupported command."
+
+    @staticmethod
+    def _valid_plugin_packet(packet):
+        feature_id = packet.get("feature_id")
+        operation = normalize_command(packet.get("operation"))
+        kind = packet.get("kind")
+        if not isinstance(feature_id, str) or not feature_id:
+            return False
+        if operation not in ("get", "set"):
+            return False
+        packet["operation"] = operation
+        if kind == "request":
+            return isinstance(packet.get("parameters", {}), dict)
+        if kind == "reply":
+            return isinstance(packet.get("result"), dict)
+        return isinstance(packet.get("error"), str)
 
     def _remember_message(self, direction, node, payload):
         if len(self.messages) >= 8:
@@ -356,7 +439,7 @@ class PeerNetwork:
                 features = []
 
         packet = {
-            "message_type": message_type,
+            "message_type": normalize_command(message_type),
             "node_name": self.node_name,
             "features": features,
         }
@@ -393,6 +476,13 @@ class PeerNetwork:
                 labels = {}
             valid_fields = []
             valid_labels = {}
+            operations = feature.get("operations", ("get",))
+            valid_operations = []
+            if isinstance(operations, (list, tuple)):
+                for operation in operations:
+                    operation = normalize_command(operation)
+                    if operation in ("get", "set") and operation not in valid_operations:
+                        valid_operations.append(operation)
             for field in fields:
                 if isinstance(field, str) and field:
                     valid_fields.append(field)
@@ -400,11 +490,14 @@ class PeerNetwork:
                     if isinstance(label, str) and label:
                         valid_labels[field] = label
             if valid_fields:
+                if "get" not in valid_operations:
+                    valid_operations.insert(0, "get")
                 records.append({
                     "id": feature_id,
                     "name": feature_name,
                     "fields": valid_fields,
                     "field_labels": valid_labels,
+                    "operations": valid_operations,
                 })
         return records
 
