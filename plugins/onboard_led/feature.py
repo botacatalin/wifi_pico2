@@ -43,10 +43,11 @@ class OnboardLedFeature(DeviceFeature):
             "plugins/onboard_led/templates/page.html",
             {
                 "MESSAGE": html_escape(message),
-                "STATE": "On" if is_on else "Off",
-                "STATE_CLASS": "is-on" if is_on else "is-off",
+                "STATE": "ON" if is_on else "OFF",
                 "NEXT_STATE": "off" if is_on else "on",
-                "BUTTON_LABEL": "Turn LED off" if is_on else "Turn LED on",
+                "BUTTON_LABEL": "OFF" if is_on else "ON",
+                "BUTTON_CLASS": "is-off" if is_on else "is-on",
+                "BUTTON_TOOLTIP": "Turn OFF" if is_on else "Turn ON",
             },
         )
 

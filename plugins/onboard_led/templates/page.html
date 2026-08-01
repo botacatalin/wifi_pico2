@@ -9,10 +9,9 @@
 <section class="dashboard-section">
 <div class="control-status">
 <span><strong>LED status</strong><small>The physical onboard indicator is currently {{STATE}}.</small></span>
-<span class="state-pill {{STATE_CLASS}}">{{STATE}}</span>
-</div>
 <form action="/features/onboard-led/set" method="post">
 <input type="hidden" name="state" value="{{NEXT_STATE}}">
-<button type="submit">{{BUTTON_LABEL}}</button>
+<button class="state-toggle {{BUTTON_CLASS}}" type="submit" title="{{BUTTON_TOOLTIP}}" aria-label="{{BUTTON_TOOLTIP}}">{{BUTTON_LABEL}}</button>
 </form>
+</div>
 </section>

@@ -518,12 +518,30 @@ class DeviceFeatureTests(unittest.TestCase):
         pin = FakePin()
         feature = OnboardLedFeature(pin=pin)
 
-        self.assertIn("Turn LED on", feature.render())
+        page = feature.render()
+        self.assertIn(
+            '<button class="state-toggle is-on" type="submit" '
+            'title="Turn ON" aria-label="Turn ON">ON</button>',
+            page,
+        )
+        self.assertIn(
+            '<div class="control-status">\n<span><strong>LED status</strong>',
+            page,
+        )
+        self.assertIn(
+            '<form action="/features/onboard-led/set" method="post">',
+            page,
+        )
+        self.assertNotIn('class="state-pill', page)
         message = feature.handle_action("set", {"state": "on"})
 
         self.assertEqual(pin.value(), 1)
         self.assertEqual(message, "The onboard LED is now on.")
-        self.assertIn("Turn LED off", feature.render(message))
+        self.assertIn(
+            '<button class="state-toggle is-off" type="submit" '
+            'title="Turn OFF" aria-label="Turn OFF">OFF</button>',
+            feature.render(message),
+        )
 
     def test_processor_temperature_feature_reads_and_renders_sensor(self):
         class Sensor:

@@ -192,7 +192,11 @@ class ConnectionFlowTests(unittest.TestCase):
         ])
         app.handle_client(detail, ("192.168.1.50", 1234))
         self.assertIn(b"The onboard LED is now on.", detail.output)
-        self.assertIn(b"Turn LED off", detail.output)
+        self.assertIn(
+            b'<button class="state-toggle is-off" type="submit" '
+            b'title="Turn OFF" aria-label="Turn OFF">OFF</button>',
+            detail.output,
+        )
         self.assertIn(b"Back to Device Features", detail.output)
 
     def test_dashboard_queries_remote_feature_by_id(self):

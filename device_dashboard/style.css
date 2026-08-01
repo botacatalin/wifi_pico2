@@ -835,6 +835,18 @@ button:active {
     color: #294f33;
 }
 
+.control-status .state-toggle {
+    min-width: 58px;
+    border-radius: 999px;
+    background: #eef1ef;
+    color: var(--muted-color);
+}
+
+.control-status .state-toggle.is-on {
+    background: var(--accent-color);
+    color: #fff;
+}
+
 .control-status small {
     display: block;
     margin-top: 2px;
