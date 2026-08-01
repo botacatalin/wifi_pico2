@@ -21,7 +21,9 @@ test suite. The current version includes:
 - CYW43 power saving disabled by default for more reliable always-on HTTP and
   multi-board UDP communication.
 
-The host suite currently contains 72 tests covering helpers, rendering,
+The host suite currently contains 77 tests organized by `device_dashboard`,
+`network_setup`, `peer_communication`, `plugins`, and `shared_web`, plus the
+cross-component application flow. It covers helpers, rendering,
 provisioning transitions, AP shutdown scheduling, feature and messaging lifecycles, peer
 discovery, retries, reply matching, deduplication, and Wi-Fi configuration.
 Physical Pico 2 W verification is still required for radio behavior, especially
@@ -264,7 +266,8 @@ Select a board, type into the composer below the chat window, and press
 RAM and timestamps them using the viewing browser's local clock. Use the trash
 icon (**Clear conversation** tooltip) to remove that local history without
 affecting discovered nodes or the other board. History is also cleared when
-the plugin stops or the board restarts. While the Nodes page is open, it
+the plugin stops or the board restarts. Existing history remains visible if a
+board temporarily drops out of the discovered-node list. While the Nodes page is open, it
 checks for conversation changes once per second and reloads automatically when
 a message arrives, so received messages do not require a manual refresh.
 
@@ -272,14 +275,12 @@ Use the radio-wave icon (**Ping selected node** tooltip) beside Send to test
 the selected board without entering a message. The receiver automatically
 returns `Ping ACK from <board-id>.` A
 `message` receiver currently echoes the original payload in its reply; this is
-the hook for future message-processing behavior. Successful message
-echoes and Ping ACKs appear inside the chat window, replacing its “No messages
-yet” state. On the sender, the request uses the sent-message color and the
-reply uses the received-message color. The receiving board records the inverse:
-the incoming request followed by its automatic Ping ACK or echoed-message
-reply. Locally sent bubbles are labeled **This Device**; received bubbles show
-the remote board ID. Retries reuse cached replies and do not duplicate chat
-entries. Only failures are shown as page notices.
+the hook for future message-processing behavior. Each successful message or
+ping appears once on each board: as sent on the sender and received on the
+destination. Transport acknowledgements confirm delivery but are not added as
+extra conversation bubbles. Locally sent bubbles are labeled **This Device**;
+received bubbles show the remote board ID. Retries reuse cached replies and do
+not duplicate chat entries. Only failures are shown as page notices.
 
 Features can also be queried from this page. Clicking a shared feature sends
 its stable ID to that node, and the current result appears in Conversation,
@@ -489,6 +490,15 @@ device_dashboard/
   templates/               Overview, Nodes, Device Features, Network, and components
 peer_communication/
   peer.py                   Bounded UDP discovery and command/reply protocol
+tests/
+  component_cases.py        Shared component test cases and lightweight fakes
+  test_device_dashboard.py  Dashboard rendering test entry point
+  test_network_setup.py     Provisioning component test entry point
+  test_network_setup_wifi.py Wi-Fi state and CYW43 configuration tests
+  test_peer_communication.py UDP discovery and messaging test entry point
+  test_plugins.py           Device feature and manager test entry point
+  test_shared_web.py        HTTP, template, form, and text helper tests
+  test_connection_flow.py   Cross-component application integration tests
   plugin.py                 Enable/disable lifecycle and state persistence
 plugins/
   interface.py              Versioned feature contract and lifecycle defaults

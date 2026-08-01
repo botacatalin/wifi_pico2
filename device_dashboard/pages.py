@@ -211,6 +211,7 @@ def device_page(
             "PEER_CARDS": "".join(peer_cards),
             "HAS_MESSAGES": bool(chat_messages),
             "NO_MESSAGES": not bool(chat_messages),
+            "SHOW_CONVERSATION": bool(peer_cards or chat_messages),
             "CHAT_MESSAGES": "".join(chat_messages),
             "MESSAGE_REVISION": int(message_revision),
             "MESSAGE_REVISION_ROUTE": html_escape(message_revision_route),

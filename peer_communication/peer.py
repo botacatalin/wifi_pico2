@@ -191,7 +191,7 @@ class PeerNetwork:
                 ):
                     ok = packet.get("kind") == "reply"
                     reply_payload = str(packet.get("payload", "Message received."))
-                    if ok:
+                    if ok and command == "feature_read":
                         self._remember_message(
                             "received", peer_name, reply_payload
                         )
@@ -313,7 +313,6 @@ class PeerNetwork:
         if message_type == "ping":
             reply_payload = "Ping ACK from %s." % self.node_name
             self._remember_message("received", node, "Ping")
-            self._remember_message("sent", node, reply_payload)
             return True, reply_payload
         if (
             message_type == "message"
@@ -322,7 +321,6 @@ class PeerNetwork:
             and len(payload.encode("utf-8")) <= self.max_payload_bytes
         ):
             self._remember_message("received", node, payload)
-            self._remember_message("sent", node, payload)
             return True, payload
         if self.request_handler is not None:
             try:
