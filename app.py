@@ -166,6 +166,15 @@ class App:
             return value
         return None
 
+    def _uptime_text(self):
+        if self.feature_manager is not None:
+            ok, values = self.feature_manager.read_values("uptime")
+            if ok:
+                value = values.get("uptime")
+                if isinstance(value, str) and value:
+                    return value
+        return self.server_metrics.uptime_text()
+
     def update(self):
         """
         Disable the temporary setup access point after
@@ -892,7 +901,7 @@ class App:
         temperature_state = ""
 
         if page == "overview":
-            uptime = self.server_metrics.uptime_text()
+            uptime = self._uptime_text()
             temperature, temperature_state = (
                 self.server_metrics.temperature_status()
             )

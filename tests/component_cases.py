@@ -14,6 +14,7 @@ if not hasattr(time, "sleep_ms"):
     time.sleep_ms = lambda milliseconds: time.sleep(milliseconds / 1000)
 
 from network_setup.credentials import CredentialStore
+from app import App
 from network_setup.networks import ipv4_broadcast_address
 from network_setup.pages import (
     connection_pending_page,
@@ -31,6 +32,7 @@ from plugins import DeviceFeature, FeatureManager
 from plugins import manager as feature_manager_module
 from plugins.onboard_led.feature import OnboardLedFeature
 from plugins.processor_temperature.feature import ProcessorTemperatureFeature
+from plugins.uptime.feature import UptimeFeature
 from shared_web import parse_form, read_request, render_template, send_html, send_response
 from shared_web import template as template_module
 from shared_web.text import capitalize_first, humanize_identifier
@@ -573,6 +575,57 @@ class DeviceFeatureTests(unittest.TestCase):
         metrics = ServerMetrics(temperature_reader=temperature_reader)
 
         self.assertEqual(metrics.temperature_status(), ("42.1 °C", ""))
+
+    def test_uptime_feature_reads_and_renders_elapsed_online_time(self):
+        ticks = [1000]
+        feature = UptimeFeature(
+            clock_ms=lambda: ticks[0],
+            ticks_diff=lambda current, previous: current - previous,
+        )
+        ticks[0] += (24 * 60 + 2 * 60 + 3) * 60000
+
+        self.assertEqual(feature.read(), {"uptime": "1 d 2 h 3 min"})
+        self.assertIn("1 d 2 h 3 min", feature.render())
+
+    def test_overview_uptime_uses_same_value_as_uptime_feature(self):
+        ticks = [1000]
+        feature = UptimeFeature(
+            clock_ms=lambda: ticks[0],
+            ticks_diff=lambda current, previous: current - previous,
+        )
+        manager = FeatureManager(features=[feature])
+        wifi = type("WiFi", (), {"station_ip": lambda self: "192.168.1.20"})()
+        app = App(
+            wifi,
+            credential_store=object(),
+            provisioned=True,
+            feature_manager=manager,
+        )
+        ticks[0] += 75 * 60000
+
+        ok, reading = manager.read_values("uptime")
+
+        self.assertTrue(ok)
+        self.assertEqual(reading["uptime"], "1 h 15 min")
+        self.assertEqual(app._uptime_text(), reading["uptime"])
+
+    def test_uptime_is_discovered_without_central_registration(self):
+        manager = FeatureManager()
+
+        self.assertIsInstance(manager.get("uptime"), UptimeFeature)
+
+    def test_overview_keeps_fallback_when_uptime_feature_is_removed(self):
+        manager = FeatureManager(features=[])
+        wifi = type("WiFi", (), {"station_ip": lambda self: "192.168.1.20"})()
+        app = App(
+            wifi,
+            credential_store=object(),
+            provisioned=True,
+            feature_manager=manager,
+        )
+        app.server_metrics.uptime_ms = 75 * 60000
+
+        self.assertEqual(app._uptime_text(), "1 h 15 min")
 
     def test_manager_registers_and_finds_injected_features(self):
         feature = OnboardLedFeature(pin=FakePin())

@@ -118,7 +118,11 @@ At startup, `FeatureManager` scans each subfolder in `plugins/`. A valid feature
 is listed automatically on the **Device Features** page; no central import,
 route, or dashboard template needs to be edited. The bundled `onboard_led` feature uses
 MicroPython's `Pin("LED", Pin.OUT)` mapping and provides a button that toggles
-the Pico 2 W's built-in LED. The bundled `processor_temperature` feature owns
+the Pico 2 W's built-in LED. The bundled `uptime` feature reports how long the
+node has been online and supplies the same value to remote nodes, its feature
+page, and the Overview page. It remains a self-contained drop-in folder; if it
+is removed, Overview falls back to its internal uptime counter. The bundled
+`processor_temperature` feature owns
 the RP2350 internal temperature sensor and supplies the same validated reading
 to its feature page, remote nodes, and the Overview page. If this feature is
 removed, Overview reports processor temperature as **Unavailable**.
