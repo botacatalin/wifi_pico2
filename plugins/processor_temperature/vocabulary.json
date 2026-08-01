@@ -1,0 +1,7 @@
+{
+  "name": "Processor Temperature",
+  "description": "Read the board processor's internal temperature sensor.",
+  "field_labels": {
+    "temperature_c": "Temperature (°C)"
+  }
+}

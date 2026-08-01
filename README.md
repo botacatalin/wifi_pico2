@@ -21,7 +21,7 @@ test suite. The current version includes:
 - CYW43 power saving disabled by default for more reliable always-on HTTP and
   multi-board UDP communication.
 
-The host suite currently contains 85 tests organized by `device_dashboard`,
+The host suite currently contains 92 tests organized by `device_dashboard`,
 `network_setup`, `peer_communication`, `plugins`, and `shared_web`, plus the
 cross-component application flow. It covers helpers, rendering,
 provisioning transitions, AP shutdown scheduling, feature and messaging lifecycles, peer
@@ -133,31 +133,40 @@ HTML compact.
 
 To install a feature, copy its complete folder into `plugins/` and restart the
 board. Folder names use lowercase letters, numbers, and underscores and must
-start with a letter. Each folder contains an `__init__.py` and a `feature.py`.
-Its class must inherit the versioned
-`DeviceFeature` interface and its module must expose `create_feature()`.
-`feature_id` may contain lowercase letters, numbers, and hyphens, and must be
-unique:
+start with a letter. Each folder contains an `__init__.py`, `feature.py`, and
+`vocabulary.json`. The JSON file owns only editable display text. Stable IDs,
+field keys, hardware classification, and protocol behavior stay in Python:
+
+```json
+{
+  "name": "Example",
+  "description": "What this feature controls.",
+  "field_labels": {
+    "temperature_c": "Temperature (°C)",
+    "connected": "Connected"
+  }
+}
+```
+
+The feature class loads that vocabulary, inherits the versioned
+`DeviceFeature` interface, and its module exposes `create_feature()`:
 
 ```python
-from plugins import DeviceFeature
+from plugins import DeviceFeature, load_vocabulary
+
+
+VOCABULARY = load_vocabulary("plugins/example/vocabulary.json")
 
 
 class ExampleFeature(DeviceFeature):
     feature_id = "example"
-    name = "Example"
-    description = "What this feature controls."
-    # sensor, actuator, or integration
+    name = VOCABULARY["name"]
+    description = VOCABULARY["description"]
     feature_type = "sensor"
-    # True when the user must connect a sensor, relay, or other component.
     requires_external_hardware = True
-    # Public values advertised during discovery and returned by read().
     exposed_fields = ("temperature_c", "connected")
-    field_labels = {
-        "temperature_c": "Temperature (°C)",
-        "connected": "Connected",
-    }
-    # All features support get. Add set only for validated remote mutation.
+    field_labels = VOCABULARY["field_labels"]
+    # Protocol behavior stays in Python, outside the static label file.
     remote_operations = ("get",)
 
     def render(self, message=""):
@@ -182,8 +191,8 @@ dynamic value it places in HTML. Features are executable firmware code, so
 install them only from sources you trust.
 
 The Device Features page marks every feature as either **Built-in hardware** or
-**External hardware required**. Omitting `requires_external_hardware` defaults
-to built-in for compatibility, but new features should declare it explicitly.
+**External hardware required**. Every feature class must declare
+`requires_external_hardware` explicitly in Python.
 The onboard LED and processor-temperature features use hardware built into every
 Pico 2 W and are marked accordingly. External sensor features should set the
 flag to `True` and document their wiring and power requirements in their own
@@ -209,8 +218,8 @@ Missing, failed, mismatched, and oversized outputs produce bounded error
 replies without exposing feature internals.
 
 Every feature supports the remote `get` operation. Remote `set` is opt-in:
-an actuator declares `remote_operations = ("get", "set")` and validates its
-parameters in `handle_action("set", parameters)`. The bundled onboard LED
+an actuator declares `remote_operations = ("get", "set")` in Python and
+validates its parameters in `handle_action("set", parameters)`. The bundled onboard LED
 accepts only `{"state": "on"}` or `{"state": "off"}`. Read-only features,
 including processor temperature, reject `set` without touching hardware.
 
@@ -310,6 +319,9 @@ packets. A
 separate `command` field and boolean `reply` field are not used.
 Command names are normalized to lowercase at both the plugin and UDP transport
 boundaries, and replies always carry the canonical lowercase `message_type`.
+The ping request, success, and acknowledgement display text is kept in
+`peer_communication/vocabulary.json`. Its `ping` wire command remains fixed in
+Python so editing labels cannot break interoperability.
 
 Message request:
 
@@ -553,6 +565,7 @@ device_dashboard/
 peer_communication/
   peer.py                   Bounded UDP discovery and command/reply protocol
   plugin.py                 Enable/disable lifecycle and state persistence
+  vocabulary.json           Editable ping conversation text
 tests/
   component_cases.py        Shared component test cases and lightweight fakes
   test_device_dashboard.py  Dashboard rendering test entry point
@@ -563,10 +576,11 @@ tests/
   test_shared_web.py        HTTP, template, form, and text helper tests
   test_connection_flow.py   Cross-component application integration tests
 plugins/
-  interface.py              Versioned feature contract and lifecycle defaults
+  interface.py              Versioned contract, vocabulary loader, and lifecycle defaults
   manager.py                Feature discovery and shared lifecycle
-  onboard_led/              Self-contained onboard LED feature and template
-  processor_temperature/    Self-contained processor-temperature feature
+  onboard_led/              LED behavior, display vocabulary, and template
+  processor_temperature/    Processor-temperature behavior and display vocabulary
+  uptime/                   Uptime behavior and display vocabulary
 ```
 
 `network_setup/` is the reusable provisioning component, `shared_web/` provides

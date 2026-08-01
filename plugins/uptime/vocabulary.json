@@ -1,0 +1,7 @@
+{
+  "name": "Uptime",
+  "description": "Report how long the node has been online.",
+  "field_labels": {
+    "uptime": "Online for"
+  }
+}

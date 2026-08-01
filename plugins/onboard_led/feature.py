@@ -2,17 +2,20 @@
 
 from shared_web.template import render_template
 from shared_web.html import html_escape
-from plugins.interface import DeviceFeature
+from plugins.interface import DeviceFeature, load_vocabulary
+
+
+VOCABULARY = load_vocabulary("plugins/onboard_led/vocabulary.json")
 
 
 class OnboardLedFeature(DeviceFeature):
     feature_id = "onboard-led"
-    name = "Onboard LED"
-    description = "Switch the board's built-in LED on or off."
+    name = VOCABULARY["name"]
+    description = VOCABULARY["description"]
     feature_type = "actuator"
     requires_external_hardware = False
     exposed_fields = ("state",)
-    field_labels = {"state": "Status"}
+    field_labels = VOCABULARY["field_labels"]
     remote_operations = ("get", "set")
 
     def __init__(self, pin=None):

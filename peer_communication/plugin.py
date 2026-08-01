@@ -3,7 +3,8 @@
 import json
 import os
 
-from peer_communication.peer import PeerNetwork, normalize_command
+from peer_communication.peer import PeerNetwork, PING_COMMAND, normalize_command
+from peer_communication.vocabulary import PING
 
 
 class PluginStateStore:
@@ -57,7 +58,7 @@ class CommunicationPlugin:
 
     COMMANDS = (
         "message",
-        "ping",
+        PING_COMMAND,
         "plugin",
     )
 
@@ -83,6 +84,7 @@ class CommunicationPlugin:
         self.max_payload_bytes = max_payload_bytes
         self.feature_handler = feature_handler
         self.feature_catalog_provider = feature_catalog_provider
+        self.ping_vocabulary = PING
         self.network = None
         self.enabled = self.state_store.load(enabled_default)
         self.network_ready = False

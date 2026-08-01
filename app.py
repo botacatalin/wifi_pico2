@@ -953,6 +953,11 @@ class App:
                 clear_conversation_route=ROUTE_CLEAR_CONVERSATION,
                 send_command_route=ROUTE_SEND_COMMAND,
                 max_payload_length=COMMUNICATION_MAX_PAYLOAD_BYTES,
+                ping_text=(
+                    getattr(plugin, "ping_vocabulary", {}).get(
+                        "request_text", "Ping"
+                    ) if plugin is not None else "Ping"
+                ),
                 features=(
                     self.feature_manager.features()
                     if page == "features" and self.feature_manager is not None

@@ -9,28 +9,45 @@ plugins/
   room_sensor/
     __init__.py
     feature.py
+    vocabulary.json
     templates/
       page.html
 ```
 
+Put only the plugin's editable display text in `vocabulary.json`:
+
+```json
+{
+  "name": "Room Sensor",
+  "description": "Reads an attached room sensor.",
+  "field_labels": {
+    "temperature_c": "Temperature (°C)",
+    "humidity_percent": "Humidity (%)"
+  }
+}
+```
+
+These labels are shared with other nodes during UDP discovery. Stable feature
+IDs, field keys, hardware flags, operations, and validation stay in Python so
+editing display text cannot change behavior or break interoperability.
+
 `feature.py` implements the versioned interface and exports one factory:
 
 ```python
-from plugins import DeviceFeature
+from plugins import DeviceFeature, load_vocabulary
 from shared_web.template import render_template
+
+VOCABULARY = load_vocabulary("plugins/room_sensor/vocabulary.json")
 
 
 class RoomSensor(DeviceFeature):
     feature_id = "room-sensor"
-    name = "Room Sensor"
-    description = "Reads an attached room sensor."
+    name = VOCABULARY["name"]
+    description = VOCABULARY["description"]
     feature_type = "sensor"
     requires_external_hardware = True
     exposed_fields = ("temperature_c", "humidity_percent")
-    field_labels = {
-        "temperature_c": "Temperature (°C)",
-        "humidity_percent": "Humidity (%)",
-    }
+    field_labels = VOCABULARY["field_labels"]
     remote_operations = ("get",)
 
     def read(self):
@@ -55,6 +72,8 @@ Rules:
 
 - Folder names start with a lowercase letter and use lowercase letters,
   numbers, and underscores.
+- Each plugin owns a `vocabulary.json` for static display text and field labels;
+  changing display text there does not require editing its hardware Python code.
 - Features inherit the current `api_version` from `DeviceFeature`; do not
   override it unless implementing a future interface version.
 - `feature_id` uses lowercase letters, numbers, and hyphens and is unique.
@@ -81,7 +100,7 @@ it automatically with the `plugin`/`get` protocol.
 If the complete manifest exceeds the configured UDP packet limit, discovery
 advertises as many features as fit and marks the list as truncated.
 
-To allow remote mutation, an actuator explicitly declares:
+To allow remote mutation, an actuator explicitly declares it in Python:
 
 ```python
 remote_operations = ("get", "set")

@@ -1,0 +1,7 @@
+{
+  "ping": {
+    "request_text": "Ping",
+    "success_text": "Online",
+    "reply_template": "Ping ACK from {node_name}."
+  }
+}

@@ -5,6 +5,10 @@ import socket
 import time
 
 from shared_web.text import humanize_identifier
+from peer_communication.vocabulary import PING
+
+
+PING_COMMAND = "ping"
 
 
 def normalize_command(command):
@@ -143,7 +147,8 @@ class PeerNetwork:
         """Send a command to a discovered peer and wait for its matched reply."""
 
         command = normalize_command(command)
-        if command not in ("message", "ping", "plugin"):
+        ping_command = PING_COMMAND
+        if command not in ("message", ping_command, "plugin"):
             return False, "Unsupported command."
         if command == "plugin":
             if not isinstance(payload, dict):
@@ -194,7 +199,7 @@ class PeerNetwork:
         elif command == "plugin":
             display_payload = self._feature_request_label(payload, feature)
         else:
-            display_payload = "Ping"
+            display_payload = PING["request_text"]
         self._remember_message("sent", peer_name, display_payload)
 
         # Give a peer selected by the user a full liveness window. A command
@@ -245,13 +250,13 @@ class PeerNetwork:
                         reply_payload = str(
                             packet.get("payload", "Message received.")
                         )
-                    if ok and command in ("ping", "plugin"):
+                    if ok and command in (ping_command, "plugin"):
                         self._remember_message(
                             "received",
                             peer_name,
                             (
                                 self._feature_result_label(reply_payload, feature)
-                                if command == "plugin" else "Online"
+                                if command == "plugin" else PING["success_text"]
                             ),
                         )
                     return ok, reply_payload
@@ -298,12 +303,12 @@ class PeerNetwork:
             "hello",
             "hello_reply",
             "message",
-            "ping",
+            PING_COMMAND,
             "plugin",
         ):
             return None
         packet["message_type"] = packet_type
-        if packet_type in ("message", "ping", "plugin"):
+        if packet_type in ("message", PING_COMMAND, "plugin"):
             if packet.get("kind") not in ("request", "reply", "error"):
                 return None
             request_id = packet.get("request_id")
@@ -357,7 +362,7 @@ class PeerNetwork:
         if packet_type == "hello":
             self._send_discovery(address, "hello_reply")
         elif (
-            packet_type in ("message", "ping", "plugin")
+            packet_type in ("message", PING_COMMAND, "plugin")
             and packet.get("kind") == "request"
         ):
             request_id = packet["request_id"]
@@ -403,9 +408,11 @@ class PeerNetwork:
 
     def _execute_request(self, node, message_type, payload):
         message_type = normalize_command(message_type)
-        if message_type == "ping":
-            reply_payload = "Ping ACK from %s." % self.node_name
-            self._remember_message("received", node, "Ping")
+        if message_type == PING_COMMAND:
+            reply_payload = PING["reply_template"].replace(
+                "{node_name}", self.node_name
+            )
+            self._remember_message("received", node, PING["request_text"])
             return True, reply_payload
         if (
             message_type == "message"

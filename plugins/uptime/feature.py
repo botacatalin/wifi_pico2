@@ -2,18 +2,22 @@
 
 import time
 
-from plugins.interface import DeviceFeature
+from plugins.interface import DeviceFeature, load_vocabulary
 from shared_web.template import render_template
+
+
+VOCABULARY = load_vocabulary("plugins/uptime/vocabulary.json")
 
 
 class UptimeFeature(DeviceFeature):
     feature_id = "uptime"
-    name = "Uptime"
-    description = "Report how long the node has been online."
+    name = VOCABULARY["name"]
+    description = VOCABULARY["description"]
     feature_type = "sensor"
     requires_external_hardware = False
     exposed_fields = ("uptime",)
-    field_labels = {"uptime": "Online for"}
+    field_labels = VOCABULARY["field_labels"]
+    remote_operations = ("get",)
 
     def __init__(self, clock_ms=None, ticks_diff=None):
         self.clock_ms = clock_ms or time.ticks_ms

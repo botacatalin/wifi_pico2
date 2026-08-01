@@ -1,6 +1,26 @@
 """Versioned interface shared by every device feature."""
 
+import json
+
 FEATURE_API_VERSION = 1
+
+
+def load_vocabulary(path):
+    """Load the small, editable vocabulary owned by one feature plugin."""
+    with open(path, "r") as file:
+        vocabulary = json.load(file)
+    if not isinstance(vocabulary, dict):
+        raise ValueError("Feature vocabulary must be an object.")
+
+    labels = vocabulary.get("field_labels")
+    if not isinstance(labels, dict):
+        raise ValueError("Feature vocabulary must define field labels.")
+
+    return {
+        "name": vocabulary.get("name"),
+        "description": vocabulary.get("description"),
+        "field_labels": labels,
+    }
 
 
 class DeviceFeature:

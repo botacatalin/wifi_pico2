@@ -51,7 +51,7 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
   restrained green status accents, responsive cards, and compact five-tab
   navigation on narrow screens. It is self-contained and loads no external
   visual assets.
-- The dependency-free host suite currently contains 72 tests. It covers HTTP
+- The dependency-free host suite currently contains 92 tests. It covers HTTP
   helpers, rendering, provisioning transitions, AP shutdown scheduling,
   feature discovery and remote reads, messaging lifecycle and transport
   behavior, and Wi-Fi configuration.
@@ -79,8 +79,12 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
   `device_dashboard/templates/`.
 - `peer_communication/plugin.py` owns messaging enablement and saved state;
   `peer_communication/peer.py` owns UDP discovery and command/reply transport.
+- `peer_communication/vocabulary.json` owns editable ping display text only;
+  wire command names and protocol behavior remain in Python.
 - `plugins/interface.py` defines the required device-feature API;
   `plugins/manager.py` validates, discovers, and owns installed plugins.
+- Each feature folder owns a `vocabulary.json` containing only its editable
+  name, description, and field labels.
 - Each UI component owns its stylesheet.
 - `README.md` is the user-facing installation, behavior, and troubleshooting
   guide; update it when visible behavior, configuration, or routes change.
@@ -145,9 +149,15 @@ MicroPython-compatible code over desktop-Python abstractions or dependencies.
 - Keep HTML/CSS compact and usable on phone-sized captive-portal browsers.
 - Every drop-in device feature must inherit `DeviceFeature`, use the current API
   version, declare `exposed_fields`, implement `render()` and a matching
-  dictionary-returning `read()`, and expose `create_feature()`.
+  dictionary-returning `read()`, expose `create_feature()`, and include a
+  display-only `vocabulary.json` loaded through `load_vocabulary()`.
   Hardware access, templates, actions, and optional lifecycle overrides belong
   inside that feature's folder.
+- Keep functional identifiers and behavior in Python: `feature_id`,
+  `feature_type`, `requires_external_hardware`, `exposed_fields`,
+  `remote_operations`, field validation, and peer wire commands must not be
+  moved into vocabulary JSON. Editing display text must not change protocol or
+  hardware behavior.
 - Keep the connected dashboard comfortable for sustained viewing: preserve
   readable contrast, quiet neutral surfaces, restrained accent use, obvious
   warning states, and clear information hierarchy. Avoid animation, visual

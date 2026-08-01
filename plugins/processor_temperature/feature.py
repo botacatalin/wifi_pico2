@@ -1,17 +1,23 @@
 """Read the RP2350 internal processor temperature sensor."""
 
 from shared_web.template import render_template
-from plugins.interface import DeviceFeature
+from plugins.interface import DeviceFeature, load_vocabulary
+
+
+VOCABULARY = load_vocabulary(
+    "plugins/processor_temperature/vocabulary.json"
+)
 
 
 class ProcessorTemperatureFeature(DeviceFeature):
     feature_id = "processor-temperature"
-    name = "Processor Temperature"
-    description = "Read the board processor's internal temperature sensor."
+    name = VOCABULARY["name"]
+    description = VOCABULARY["description"]
     feature_type = "sensor"
     requires_external_hardware = False
     exposed_fields = ("temperature_c",)
-    field_labels = {"temperature_c": "Temperature (°C)"}
+    field_labels = VOCABULARY["field_labels"]
+    remote_operations = ("get",)
 
     def __init__(self, sensor=None, critical_temperature_c=85):
         self.critical_temperature_c = critical_temperature_c

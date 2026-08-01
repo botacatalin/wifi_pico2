@@ -25,9 +25,9 @@
 <textarea id="peer-payload" name="payload" maxlength="{{MAX_PAYLOAD_LENGTH}}" rows="2" placeholder="Write a message" aria-describedby="composer-help" {{COMPOSER_DISABLED}}></textarea>
 <span id="composer-help" class="visually-hidden">Press Enter to send. Press Shift and Enter for a new line.</span>
 <button class="send-button" type="submit" name="command" value="message" disabled>Send</button>
-<button class="ping-button" type="submit" name="command" value="ping" aria-label="Ping selected node" title="Ping selected node" {{COMPOSER_DISABLED}}>
+<button class="ping-button" type="submit" name="command" value="ping" aria-label="{{PING_TEXT}} selected node" title="{{PING_TEXT}} selected node" {{COMPOSER_DISABLED}}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"></circle><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13"></path></svg>
-<span>Ping</span>
+<span>{{PING_TEXT}}</span>
 </button>
 </form>
 </div>

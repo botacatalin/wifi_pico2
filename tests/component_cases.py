@@ -614,6 +614,20 @@ class DeviceFeatureTests(unittest.TestCase):
 
         self.assertIsInstance(manager.get("uptime"), UptimeFeature)
 
+    def test_builtin_peer_vocabulary_is_loaded_from_plugin_json(self):
+        manager = FeatureManager(features=[OnboardLedFeature(pin=FakePin())])
+
+        self.assertEqual(
+            manager.discovery_manifest(),
+            [{
+                "id": "onboard-led",
+                "name": "Onboard LED",
+                "fields": ("state",),
+                "field_labels": {"state": "Status"},
+                "operations": ("get", "set"),
+            }],
+        )
+
     def test_overview_keeps_fallback_when_uptime_feature_is_removed(self):
         manager = FeatureManager(features=[])
         wifi = type("WiFi", (), {"station_ip": lambda self: "192.168.1.20"})()

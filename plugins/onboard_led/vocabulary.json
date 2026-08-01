@@ -1,0 +1,7 @@
+{
+  "name": "Onboard LED",
+  "description": "Switch the board's built-in LED on or off.",
+  "field_labels": {
+    "state": "Status"
+  }
+}
