@@ -21,7 +21,7 @@ test suite. The current version includes:
 - CYW43 power saving disabled by default for more reliable always-on HTTP and
   multi-board UDP communication.
 
-The host suite currently contains 92 tests organized by `device_dashboard`,
+The host suite currently contains 93 tests organized by `device_dashboard`,
 `network_setup`, `peer_communication`, `plugins`, and `shared_web`, plus the
 cross-component application flow. It covers helpers, rendering,
 provisioning transitions, AP shutdown scheduling, feature and messaging lifecycles, peer

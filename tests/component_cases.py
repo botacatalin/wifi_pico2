@@ -375,6 +375,8 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn('value="message" disabled>Send</button>', page)
         self.assertIn('event.key === "Enter" && !event.shiftKey', page)
         self.assertIn("form.requestSubmit(sendButton)", page)
+        self.assertIn('form.setAttribute("data-sending", "true")', page)
+        self.assertNotIn("submitter.disabled = true", page)
         self.assertIn('var selectedPeerKey = "nodes.selectedPeer";', page)
         self.assertIn("window.localStorage.getItem(selectedPeerKey)", page)
         self.assertIn('name="command" value="ping"', page)
@@ -1015,6 +1017,27 @@ class CommunicationPluginTests(unittest.TestCase):
             network._execute_request("nodes-c3d4", "unknown", ""),
             (False, "Unsupported command."),
         )
+
+    def test_invalid_message_does_not_fall_through_to_plugin_handler(self):
+        network = PeerNetwork.__new__(PeerNetwork)
+        network.node_name = "nodes-a1b2"
+        network.messages = []
+        network.message_revision = 0
+        network.max_payload_bytes = 5
+        calls = []
+        network.request_handler = lambda command, payload: calls.append(
+            (command, payload)
+        )
+
+        self.assertEqual(
+            network._execute_request("nodes-c3d4", "message", ""),
+            (False, "The message is empty."),
+        )
+        self.assertEqual(
+            network._execute_request("nodes-c3d4", "message", "123456"),
+            (False, "The message is too long."),
+        )
+        self.assertEqual(calls, [])
 
     def test_plugin_request_is_dispatched_to_injected_handler(self):
         network = PeerNetwork.__new__(PeerNetwork)

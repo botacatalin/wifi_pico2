@@ -414,15 +414,16 @@ class PeerNetwork:
             )
             self._remember_message("received", node, PING["request_text"])
             return True, reply_payload
-        if (
-            message_type == "message"
-            and isinstance(payload, str)
-            and payload
-            and len(payload.encode("utf-8")) <= self.max_payload_bytes
-        ):
+        if message_type == "message":
+            if not isinstance(payload, str):
+                return False, "The message payload must be text."
+            if not payload:
+                return False, "The message is empty."
+            if len(payload.encode("utf-8")) > self.max_payload_bytes:
+                return False, "The message is too long."
             self._remember_message("received", node, payload)
             return True, payload
-        if self.request_handler is not None:
+        if message_type == "plugin" and self.request_handler is not None:
             try:
                 return self.request_handler(message_type, payload)
             except Exception:

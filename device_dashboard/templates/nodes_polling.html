@@ -105,7 +105,12 @@
         form.addEventListener("submit", function (event) {
             var submitter = event.submitter;
             if (submitter && submitter.classList.contains("send-button")) {
-                submitter.disabled = true;
+                if (form.getAttribute("data-sending") === "true") {
+                    event.preventDefault();
+                    return;
+                }
+                form.setAttribute("data-sending", "true");
+                submitter.setAttribute("aria-disabled", "true");
                 submitter.textContent = "Sending…";
                 submitter.setAttribute("aria-busy", "true");
             }
