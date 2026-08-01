@@ -287,9 +287,11 @@ returns `Ping ACK from <board-id>.` A
 the hook for future message-processing behavior. Each successful message or
 ping appears once on each board: as sent on the sender and received on the
 destination. Transport acknowledgements confirm delivery but are not added as
-extra conversation bubbles. Locally sent bubbles are labeled **This Device**;
-received bubbles show the remote board ID. Retries reuse cached replies and do
-not duplicate chat entries. Only failures are shown as page notices.
+extra conversation bubbles for normal messages. A successful ping also shows
+the returned `Ping ACK from <board-id>.` as a received bubble on the sender.
+Locally sent bubbles are labeled **This Device**; received bubbles show the
+remote board ID. Retries reuse cached replies and do not duplicate chat entries.
+Only failures are shown as page notices.
 
 Features can also be queried from this page. Clicking a shared feature sends
 its stable ID to that node, and its structured state appears in Conversation.

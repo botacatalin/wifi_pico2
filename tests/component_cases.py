@@ -1301,7 +1301,8 @@ class CommunicationPluginTests(unittest.TestCase):
         reply = (
             '{"message_type":"ping","kind":"reply",'
             '"request_id":"%s","node_name":"peer-one",'
-            '"payload":"accepted","group_name":"workshop"}' % request_id
+            '"payload":"Ping ACK from peer-one.","group_name":"workshop"}'
+            % request_id
         ).encode("utf-8")
         udp_socket.incoming.extend([
             (wrong_reply, ("192.168.1.99", 4242)),
@@ -1314,15 +1315,20 @@ class CommunicationPluginTests(unittest.TestCase):
 
         self.assertEqual(
             network.send_command("peer-one", "ping"),
-            (True, "accepted"),
+            (True, "Ping ACK from peer-one."),
         )
-        recent_messages = network.recent_messages()[-1:]
+        recent_messages = network.recent_messages()[-2:]
         self.assertTrue(all("created_at_ms" in message for message in recent_messages))
         self.assertEqual([
             {key: value for key, value in message.items() if key != "created_at_ms"}
             for message in recent_messages
         ], [
             {"direction": "sent", "node": "peer-one", "payload": "Ping"},
+            {
+                "direction": "received",
+                "node": "peer-one",
+                "payload": "Ping ACK from peer-one.",
+            },
         ])
         request = udp_socket.sent[0][0].decode("utf-8")
         self.assertIn('"message_type": "ping"', request)

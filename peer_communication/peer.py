@@ -241,9 +241,14 @@ class PeerNetwork:
                         reply_payload = str(
                             packet.get("payload", "Message received.")
                         )
-                    if ok and command == "plugin":
+                    if ok and command in ("ping", "plugin"):
                         self._remember_message(
-                            "received", peer_name, json.dumps(reply_payload)
+                            "received",
+                            peer_name,
+                            (
+                                json.dumps(reply_payload)
+                                if command == "plugin" else reply_payload
+                            ),
                         )
                     return ok, reply_payload
             time.sleep_ms(20)
