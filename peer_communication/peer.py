@@ -69,6 +69,7 @@ class PeerNetwork:
         self.recent_commands = {}
         self.request_handler = request_handler
         self.feature_catalog_provider = feature_catalog_provider
+        self.discovery_feature_offset = 0
 
         self.socket = udp_socket if udp_socket is not None else socket.socket(
             socket.AF_INET,
@@ -325,10 +326,27 @@ class PeerNetwork:
             "features_truncated", False
         )
         if "features" in packet:
-            features = self._validated_features(packet["features"])
-            features_truncated = bool(
-                packet.get("features_truncated", False)
-            )
+            advertised = self._validated_features(packet["features"])
+            features_truncated = bool(packet.get("features_truncated", False))
+            feature_count = packet.get("feature_count")
+            if features_truncated:
+                # A bounded discovery packet may contain only a rotating slice
+                # of the catalog. Merge slices so plugins near the end of the
+                # manifest are not permanently hidden from the dashboard.
+                by_id = {}
+                for feature in features:
+                    by_id[feature["id"]] = feature
+                for feature in advertised:
+                    by_id[feature["id"]] = feature
+                features = [by_id[key] for key in sorted(by_id)]
+                if (
+                    isinstance(feature_count, int)
+                    and feature_count >= 0
+                    and len(features) >= feature_count
+                ):
+                    features_truncated = False
+            else:
+                features = advertised
         self.peers[node] = {
             "address": (address[0], self.port),
             "last_seen": time.ticks_ms(),
@@ -482,16 +500,26 @@ class PeerNetwork:
             except Exception:
                 features = []
 
+        feature_count = len(features)
+        if feature_count:
+            offset = self.discovery_feature_offset % feature_count
+            features = features[offset:] + features[:offset]
+
         packet = {
             "message_type": normalize_command(message_type),
             "node_name": self.node_name,
             "features": features,
+            "feature_count": feature_count,
         }
-        feature_count = len(features)
         while True:
             packet["features_truncated"] = len(features) < feature_count
             try:
                 self._send(address, packet)
+                if feature_count:
+                    sent_count = len(features)
+                    self.discovery_feature_offset = (
+                        self.discovery_feature_offset + sent_count
+                    ) % feature_count
                 return
             except ValueError:
                 if not features:

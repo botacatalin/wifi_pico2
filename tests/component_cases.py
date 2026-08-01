@@ -1188,6 +1188,42 @@ class CommunicationPluginTests(unittest.TestCase):
         self.assertIn('"features_truncated": true', packet)
         self.assertLess(packet.count('"id":'), len(manifest))
 
+    def test_truncated_discovery_rotates_and_receiver_accumulates_features(self):
+        manifest = []
+        for feature_id in ("onboard-led", "processor-temperature", "uptime"):
+            manifest.append({
+                "id": feature_id,
+                "name": feature_id,
+                "fields": ("value",),
+            })
+        sender_socket = FakeDatagramSocket()
+        sender = PeerNetwork(
+            "sender",
+            "workshop",
+            max_packet_bytes=230,
+            feature_catalog_provider=lambda: manifest,
+            udp_socket=sender_socket,
+        )
+        receiver = PeerNetwork(
+            "receiver",
+            "workshop",
+            max_packet_bytes=230,
+            udp_socket=FakeDatagramSocket(),
+        )
+
+        for unused in range(3):
+            sender.discover()
+            data = sender_socket.sent[-1][0]
+            receiver.socket.incoming.append((data, ("192.168.1.20", 4242)))
+            receiver._receive_one()
+
+        peer = receiver.available_peers()[0]
+        self.assertEqual(
+            [feature["id"] for feature in peer["features"]],
+            ["onboard-led", "processor-temperature", "uptime"],
+        )
+        self.assertNotIn("features_truncated", peer)
+
     def test_unreachable_broadcast_waits_for_next_discovery_interval(self):
         network = PeerNetwork(
             "nodes-a1b2",
