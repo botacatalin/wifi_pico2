@@ -311,8 +311,8 @@ class ConnectionFlowTests(unittest.TestCase):
         app.handle_client(messages, ("192.168.1.50", 1234))
         response = messages.output.decode("utf-8")
         self.assertNotIn("No messages yet", response)
-        self.assertIn('<div class="chat-message is-sent">', response)
-        self.assertIn('<div class="chat-message is-received">', response)
+        self.assertIn('<div class="chat-row is-sent"', response)
+        self.assertIn('<div class="chat-row is-received"', response)
 
     def test_dashboard_disables_communication_without_success_notice(self):
         plugin = FakeCommunicationPlugin()

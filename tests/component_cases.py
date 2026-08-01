@@ -287,18 +287,21 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn(
             '<span class="badge network-badge">Not saved</span>', page
         )
-        self.assertIn('value="peer&lt;one&gt;" checked', page)
+        self.assertIn('value="peer&lt;one&gt;" data-peer-ip="192.168.1.21" checked', page)
+        self.assertIn('aria-selected="true"', page)
+        self.assertIn("Conversation with <span id=\"selected-node-name\">peer&lt;one&gt;", page)
         self.assertNotIn('<script>alert("x")</script>', page)
         self.assertIn('<time data-message-age-ms="', page)
         self.assertIn("messageDate.toLocaleTimeString", page)
         self.assertIn('action="/communication/command"', page)
-        self.assertIn('formaction="/communication/clear"', page)
+        self.assertIn('method="post" action="/communication/clear"', page)
         self.assertIn("Clear conversation", page)
         self.assertIn('fetch("/communication/message-revision"', page)
         self.assertIn("var revision = 0;", page)
         self.assertIn("window.location.reload()", page)
         self.assertIn('action="/communication/refresh"', page)
-        self.assertIn("Refresh devices", page)
+        self.assertIn("Scan for devices", page)
+        self.assertIn("Scanning…", page)
         self.assertNotIn('action="/communication/toggle"', page)
 
     def test_messaging_offers_features_for_remote_query(self):
@@ -323,8 +326,9 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn('name="operation" value="get"', page)
         self.assertIn("Onboard LED", page)
         self.assertIn("Status", page)
-        self.assertIn('<details class="peer-features">', page)
-        self.assertIn("<summary>Shared features<span>1</span></summary>", page)
+        self.assertIn('role="tab" aria-selected="false" aria-controls="features-panel">Shared features', page)
+        self.assertIn('data-peer-panel="peer-one"', page)
+        self.assertIn('id="features-panel" class="conversation-tab-panel"', page)
 
     def test_nodes_page_shows_remote_feature_manifest(self):
         page = device_page(
@@ -345,6 +349,7 @@ class DevicePageTests(unittest.TestCase):
         self.assertIn("weather-sensor", page)
         self.assertIn("Temperature (°C), Humidity (%)", page)
         self.assertIn('class="nodes-workspace"', page)
+        self.assertIn('class="peer-grid" role="listbox"', page)
 
     def test_nodes_owns_peer_operations_and_conversation(self):
         page = device_page(
@@ -365,20 +370,19 @@ class DevicePageTests(unittest.TestCase):
         self.assertLess(page.index(nodes_heading), page.index("Conversation"))
         self.assertIn('name="peer"', page)
         self.assertIn('placeholder="Write a message"', page)
-        self.assertIn(">Send</button>", page)
+        self.assertIn('value="message" disabled>Send</button>', page)
+        self.assertIn('event.key === "Enter" && !event.shiftKey', page)
+        self.assertIn("form.requestSubmit(sendButton)", page)
+        self.assertIn('var selectedPeerKey = "nodes.selectedPeer";', page)
+        self.assertIn("window.localStorage.getItem(selectedPeerKey)", page)
         self.assertIn('name="command" value="ping"', page)
         self.assertIn('aria-label="Ping selected node"', page)
         self.assertIn('aria-label="Clear conversation"', page)
         self.assertIn('<svg viewBox="0 0 24 24"', page)
-        self.assertLess(
-            page.index('name="command" value="message"'),
-            page.index('name="command" value="ping"'),
-        )
-        self.assertLess(
-            page.index('name="command" value="ping"'),
-            page.index("Clear conversation"),
-        )
-        self.assertIn('class="icon-button ping-button"', page)
+        self.assertIn('class="ping-button"', page)
+        self.assertIn("<span>Ping</span>", page)
+        self.assertIn('data-confirm-clear', page)
+        self.assertIn('window.confirm("Clear all local conversation history?', page)
         sent_page = device_page(
             "192.168.1.20",
             page="nodes",
@@ -390,7 +394,7 @@ class DevicePageTests(unittest.TestCase):
                 "payload": "hello",
             }],
         )
-        self.assertIn("<small><span>This Device</span>", sent_page)
+        self.assertIn("<small><span>You</span>", sent_page)
         self.assertNotIn("<small>nodes-a1b2</small>", sent_page)
         self.assertNotIn('href="/communication"', page)
 
@@ -415,7 +419,7 @@ class DevicePageTests(unittest.TestCase):
         )
 
         self.assertIn("Conversation", page)
-        self.assertIn('<div class="chat-message is-received">', page)
+        self.assertIn('<div class="chat-row is-received"', page)
         self.assertIn("hello from peer one", page)
 
     def test_messaging_hides_peers_when_plugin_is_disabled(self):

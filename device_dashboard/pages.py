@@ -67,6 +67,7 @@ def device_page(
     is_about_page = page == "about"
     is_features_page = page == "features"
     peer_cards = []
+    peer_feature_panels = []
     chat_messages = []
     feature_cards = []
     rendered_at_ms = time.ticks_ms()
@@ -102,37 +103,59 @@ def device_page(
                         ", ".join(fields),
                     )
                 )
-        feature_count = len(exposed)
         if peer.get("features_truncated"):
             exposed.append("<span>More features available</span>")
-        exposed_html = (
-            '<details class="peer-features"><summary>Shared features'
-            '<span>%d</span></summary><div class="peer-feature-list">%s</div>'
-            '</details>'
-            % (feature_count, "".join(exposed))
+        feature_items = (
+            "".join(exposed)
             if exposed
-            else '<details class="peer-features is-empty"><summary>'
-            'Shared features<span>0</span></summary><div class="peer-feature-list">'
-            'No shared feature information advertised</div></details>'
+            else '<p class="feature-empty">No shared features advertised.</p>'
         )
-        peer_cards.append(
-            '<article class="peer-card"><label class="peer-selector">'
-            '<input form="node-command-form" type="radio" name="peer" '
-            'value="%s"%s><span><strong>%s</strong>'
-            '<small>IP address <code>%s</code></small></span></label>%s</article>'
+        peer_feature_panels.append(
+            '<div class="shared-features-panel" data-peer-panel="%s"%s>'
+            '<p class="panel-intro">Capabilities shared by <strong>%s</strong></p>'
+            '<div class="peer-feature-list">%s</div></div>'
             % (
                 name,
+                "" if index == 0 else " hidden",
+                name,
+                feature_items,
+            )
+        )
+        peer_cards.append(
+            '<article class="peer-card%s" role="option" data-peer-card="%s"%s><label class="peer-selector">'
+            '<input form="node-command-form" type="radio" name="peer" '
+            'value="%s" data-peer-ip="%s"%s><span class="peer-card-copy">'
+            '<strong>%s</strong><small>IP address <code>%s</code></small>'
+            '</span></label></article>'
+            % (
+                " is-selected" if index == 0 else "",
+                name,
+                ' aria-selected="true"' if index == 0 else ' aria-selected="false"',
+                name,
+                peer_ip,
                 " checked" if index == 0 else "",
                 name,
                 peer_ip,
-                exposed_html,
             )
         )
+    selected_name = ""
+    selected_ip = ""
+    has_selected_peer = False
+    if peers:
+        selected_name = html_escape(peers[0].get("name", ""))
+        selected_ip = html_escape(peers[0].get("ip", ""))
+        has_selected_peer = True
+    elif messages:
+        for message_record in reversed(messages):
+            if message_record.get("node"):
+                selected_name = html_escape(message_record.get("node", ""))
+                break
+    previous_sender = None
     for message_record in messages or []:
         is_sent = message_record.get("direction") == "sent"
         direction = "is-sent" if is_sent else "is-received"
         node = (
-            "This Device"
+            "You"
             if is_sent
             else html_escape(message_record.get("node", ""))
         )
@@ -142,10 +165,17 @@ def device_page(
         if created_at_ms is not None:
             age_ms = max(0, time.ticks_diff(rendered_at_ms, created_at_ms))
             timestamp_html = '<time data-message-age-ms="%d"></time>' % age_ms
+        sender_key = (direction, node)
+        repeated = sender_key == previous_sender
+        previous_sender = sender_key
+        meta = (
+            '<small><span>%s</span>%s</small>' % (node, timestamp_html)
+            if not repeated else '<small class="timestamp-only">%s</small>' % timestamp_html
+        )
         chat_messages.append(
-            '<div class="chat-message %s"><small><span>%s</span>%s</small>'
-            '<p>%s</p></div>'
-            % (direction, node, timestamp_html, payload)
+            '<div class="chat-row %s%s" data-message-peer="%s">'
+            '<div class="chat-message">%s<p>%s</p></div></div>'
+            % (direction, " is-consecutive" if repeated else "", html_escape(message_record.get("node", "")), meta, payload)
         )
 
     for feature in features or []:
@@ -210,8 +240,12 @@ def device_page(
             "HAS_PEERS": bool(peer_cards),
             "NO_PEERS": not bool(peer_cards),
             "PEER_CARDS": "".join(peer_cards),
+            "PEER_FEATURE_PANELS": "".join(peer_feature_panels),
+            "SELECTED_NODE_NAME": selected_name,
+            "SELECTED_NODE_IP": selected_ip,
+            "COMPOSER_DISABLED": "" if has_selected_peer else "disabled",
             "HAS_MESSAGES": bool(chat_messages),
-            "NO_MESSAGES": not bool(chat_messages),
+            "EMPTY_STATE_HIDDEN": "hidden" if chat_messages else "",
             "SHOW_CONVERSATION": bool(peer_cards or chat_messages),
             "CHAT_MESSAGES": "".join(chat_messages),
             "MESSAGE_REVISION": int(message_revision),

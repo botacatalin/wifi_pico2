@@ -1,19 +1,38 @@
-<form id="node-command-form" class="chat-form" method="post" action="{{SEND_COMMAND_ROUTE}}">
 <section class="dashboard-section conversation-section">
-<div class="section-heading"><span>Conversation</span></div>
-<div class="chat-window" aria-label="Recent messages">
+<header class="conversation-header">
+<div>
+<p class="eyebrow">Selected node</p>
+<h2>Conversation with <span id="selected-node-name">{{SELECTED_NODE_NAME}}</span></h2>
+<p class="conversation-meta"><code id="selected-node-ip">{{SELECTED_NODE_IP}}</code></p>
+</div>
+<details class="conversation-menu">
+<summary aria-label="Conversation actions" title="Conversation actions">&#8942;</summary>
+<form method="post" action="{{CLEAR_CONVERSATION_ROUTE}}"><button class="menu-danger" type="submit" aria-label="Clear conversation" data-confirm-clear>Clear conversation</button></form>
+</details>
+</header>
+<div class="conversation-tabs" role="tablist" aria-label="Selected node details">
+<button id="messages-tab" class="conversation-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="messages-panel">Messages</button>
+<button id="features-tab" class="conversation-tab" type="button" role="tab" aria-selected="false" aria-controls="features-panel">Shared features</button>
+</div>
+<div id="messages-panel" class="conversation-tab-panel" role="tabpanel" aria-labelledby="messages-tab">
+<div class="chat-window" aria-label="Messages with {{SELECTED_NODE_NAME}}" aria-live="polite">
 {{? HAS_MESSAGES > chat_messages.html}}
-{{? NO_MESSAGES > chat_empty.html}}
+{{> chat_empty.html}}
 </div>
 <div class="chat-composer">
-<input id="peer-payload" name="payload" maxlength="{{MAX_PAYLOAD_LENGTH}}" placeholder="Write a message">
-<button type="submit" name="command" value="message">Send</button>
-<button class="icon-button ping-button" type="submit" name="command" value="ping" aria-label="Ping selected node" title="Ping selected node">
+<form id="node-command-form" class="chat-form" method="post" action="{{SEND_COMMAND_ROUTE}}">
+<label class="visually-hidden" for="peer-payload">Message</label>
+<textarea id="peer-payload" name="payload" maxlength="{{MAX_PAYLOAD_LENGTH}}" rows="2" placeholder="Write a message" aria-describedby="composer-help" {{COMPOSER_DISABLED}}></textarea>
+<span id="composer-help" class="visually-hidden">Press Enter to send. Press Shift and Enter for a new line.</span>
+<button class="send-button" type="submit" name="command" value="message" disabled>Send</button>
+<button class="ping-button" type="submit" name="command" value="ping" aria-label="Ping selected node" title="Ping selected node" {{COMPOSER_DISABLED}}>
 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"></circle><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13"></path></svg>
+<span>Ping</span>
 </button>
-<button class="icon-button clear-button" type="submit" formaction="{{CLEAR_CONVERSATION_ROUTE}}" formmethod="post" aria-label="Clear conversation" title="Clear conversation">
-<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"></path></svg>
-</button>
+</form>
+</div>
+</div>
+<div id="features-panel" class="conversation-tab-panel" role="tabpanel" aria-labelledby="features-tab" hidden>
+{{PEER_FEATURE_PANELS}}
 </div>
 </section>
-</form>

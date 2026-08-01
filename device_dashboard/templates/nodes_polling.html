@@ -8,6 +8,7 @@
         var age = parseInt(timestamp.getAttribute("data-message-age-ms"), 10);
         var messageDate = new Date(pageLoadedAt - age);
         timestamp.dateTime = messageDate.toISOString();
+        timestamp.title = messageDate.toLocaleString();
         timestamp.textContent = messageDate.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -25,5 +26,118 @@
             .catch(function () {});
     }
     window.setInterval(checkMessages, 1000);
+
+    var form = document.getElementById("node-command-form");
+    var composer = document.getElementById("peer-payload");
+    var sendButton = form && form.querySelector(".send-button");
+    var radios = document.querySelectorAll("input[name=peer]");
+    var selectedPeerKey = "nodes.selectedPeer";
+    function selectPeer(radio) {
+        var cards = document.querySelectorAll("[data-peer-card]");
+        var panels = document.querySelectorAll("[data-peer-panel]");
+        var messages = document.querySelectorAll("[data-message-peer]");
+        var empty = document.querySelector("[data-empty-state]");
+        var visibleMessages = 0;
+        document.getElementById("selected-node-name").textContent = radio.value;
+        document.getElementById("selected-node-ip").textContent = radio.getAttribute("data-peer-ip");
+        for (var i = 0; i < cards.length; i += 1) {
+            var selected = cards[i].getAttribute("data-peer-card") === radio.value;
+            cards[i].classList.toggle("is-selected", selected);
+            cards[i].setAttribute("aria-selected", selected ? "true" : "false");
+        }
+        for (var j = 0; j < panels.length; j += 1) {
+            var showPanel = panels[j].getAttribute("data-peer-panel") === radio.value;
+            panels[j].hidden = !showPanel;
+        }
+        for (var k = 0; k < messages.length; k += 1) {
+            var showMessage = messages[k].getAttribute("data-message-peer") === radio.value;
+            messages[k].hidden = !showMessage;
+            if (showMessage) { visibleMessages += 1; }
+        }
+        if (empty) {
+            empty.hidden = visibleMessages > 0;
+            empty.querySelector("span").textContent = radio.value;
+        }
+    }
+    for (var radioIndex = 0; radioIndex < radios.length; radioIndex += 1) {
+        radios[radioIndex].addEventListener("change", function () {
+            try { window.localStorage.setItem(selectedPeerKey, this.value); } catch (error) {}
+            selectPeer(this);
+        });
+    }
+    var initialRadio = document.querySelector("input[name=peer]:checked") || radios[0];
+    try {
+        var savedPeer = window.localStorage.getItem(selectedPeerKey);
+        if (savedPeer) {
+            var savedRadios = document.querySelectorAll("input[name=peer]");
+            for (var savedIndex = 0; savedIndex < savedRadios.length; savedIndex += 1) {
+                if (savedRadios[savedIndex].value === savedPeer) {
+                    initialRadio = savedRadios[savedIndex];
+                    initialRadio.checked = true;
+                    break;
+                }
+            }
+        }
+    } catch (error) {}
+    if (initialRadio) {
+        selectPeer(initialRadio);
+    }
+    function updateSend() { if (sendButton) { sendButton.disabled = !composer.value.trim(); } }
+    if (composer) {
+        composer.addEventListener("input", updateSend);
+        composer.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (!sendButton.disabled) { form.requestSubmit(sendButton); }
+            }
+        });
+        updateSend();
+    }
+    var clearButton = document.querySelector("[data-confirm-clear]");
+    if (clearButton) {
+        clearButton.form.addEventListener("submit", function (event) {
+            if (!window.confirm("Clear all local conversation history? This cannot be undone.")) {
+                event.preventDefault();
+            }
+        });
+    }
+    if (form) {
+        form.addEventListener("submit", function (event) {
+            var submitter = event.submitter;
+            if (submitter && submitter.classList.contains("send-button")) {
+                submitter.disabled = true;
+                submitter.textContent = "Sending…";
+                submitter.setAttribute("aria-busy", "true");
+            }
+        });
+    }
+    var tabs = document.querySelectorAll("[role=tab]");
+    for (var tabIndex = 0; tabIndex < tabs.length; tabIndex += 1) {
+        tabs[tabIndex].addEventListener("click", function () {
+            for (var i = 0; i < tabs.length; i += 1) {
+                var active = tabs[i] === this;
+                tabs[i].classList.toggle("is-active", active);
+                tabs[i].setAttribute("aria-selected", active ? "true" : "false");
+                document.getElementById(tabs[i].getAttribute("aria-controls")).hidden = !active;
+            }
+        });
+        tabs[tabIndex].addEventListener("keydown", function (event) {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") { return; }
+            event.preventDefault();
+            var next = event.key === "ArrowRight" ? this.nextElementSibling : this.previousElementSibling;
+            if (!next) { next = event.key === "ArrowRight" ? tabs[0] : tabs[tabs.length - 1]; }
+            next.focus();
+            next.click();
+        });
+    }
+    var discoveryForm = document.querySelector("[data-discovery-button]");
+    if (discoveryForm) {
+        discoveryForm.form.addEventListener("submit", function () {
+            discoveryForm.disabled = true;
+            discoveryForm.textContent = "Scanning…";
+            discoveryForm.setAttribute("aria-busy", "true");
+            document.querySelector("[data-discovery-status]").textContent = "Discovery scan in progress…";
+        });
+    }
 }());
 </script>

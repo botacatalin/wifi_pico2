@@ -1,11 +1,11 @@
 <section class="dashboard-section">
 <div class="control-status">
 <div>
-<strong>Refresh device discovery</strong>
-<span>Broadcast now to refresh the list of devices on this network.</span>
+<strong>Device discovery</strong>
+<span data-discovery-status>Scan the Wi-Fi network for nearby Nodes devices.</span>
 </div>
 <form method="post" action="{{COMMUNICATION_REFRESH_ROUTE}}">
-<button class="secondary-button" type="submit">Refresh devices</button>
+<button class="secondary-button" type="submit" data-discovery-button>Scan for devices</button>
 </form>
 </div>
 </section>
